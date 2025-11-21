@@ -3,14 +3,18 @@ package com.quip.coa.controller;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.UpdateResult;
 import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.helper.Utility;
 import com.quip.coa.service.*;
+import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.validator.routines.UrlValidator;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -18,13 +22,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 
 @RestController
-@RequestMapping("/component")
+@RequestMapping("/content")
 public class ComponentController {
 
 	@Autowired
@@ -46,9 +48,99 @@ public class ComponentController {
 	@Autowired
 	private DataVersionService dataVersionService;
 	@Autowired
-	private ConvertMappingFileToJsonV2 convertMappingFileToJsonV2;
+	private ConvertMappingFileToJson convertMappingFileToJson;
+	@Autowired
+	private DomainService domainService;
 
 	private static final ObjectMapper mapper = new ObjectMapper();
+
+	// create a domain
+	@PostMapping(value = "/createDomain", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+	public ResponseEntity<ObjectNode> createDomain(@RequestPart("file") MultipartFile file, @RequestPart("domainName") String domainName, @RequestPart("domainUrl") String domainUrl) throws IOException {
+
+		Map<String, Object> response = new LinkedHashMap<>();
+
+		if (domainName==null ){
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.EMPTY_FIELDS);
+			response.put("errorMessage", "domainName field is mandatory.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+
+		if (domainName.trim().isEmpty()) {
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.EMPTY_VALUES);
+			response.put("errorMessage", "Data Invalid. domainName cannot be empty.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+
+		if (domainUrl==null ){
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.EMPTY_FIELDS);
+			response.put("errorMessage", "domainUrl field is mandatory.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+
+		UrlValidator urlValidator = new UrlValidator();
+		if (domainUrl.trim().isEmpty()) {
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.EMPTY_VALUES);
+			response.put("errorMessage", "Data Invalid. domainUrl cannot be empty.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+
+		if (!(urlValidator.isValid(domainUrl))) {
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.INVALID_DATA);
+			response.put("errorMessage", "Data Invalid. Please enter valid domainUrl.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+
+		String domainAuthor=utility.getClientName(domainUrl);
+
+		Map<String,Object> mapperResponse=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainAuthor);
+		Document jsonData=mapper.convertValue(mapperResponse, Document.class);
+		MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainAuthor).getCollection("tenantConfig");
+		Document mappingFileDocument=tenantConfigCollection.find().first();
+		if (mappingFileDocument==null){
+			tenantConfigCollection.insertOne(jsonData);
+		}
+		else {
+			String id=mappingFileDocument.get("_id").toString();
+			tenantConfigCollection.updateOne(new Document("_id",id), new Document("$set",jsonData));
+		}
+
+		Map<String, String> domainData = new HashMap<>();
+		domainData.put("domainName", domainName);
+		domainData.put("domainUrl", domainUrl);
+
+		String id = domainService.postDomain(domainData);
+		    if (id == null) {
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.CREATION_FAILED);
+			response.put("errorMessage", "Domain creation is failed as domainName or domainUrl already exists. Try using another values.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		    }
+		response.put("status", "Success");
+		response.put("response", "Domain created successfully. Domain can be accessed by Id: "+id);
+		return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+	}
+
+	// fetch all the domains from the database
+	@GetMapping("/getAllDomains")
+	public ResponseEntity<ObjectNode> getAllDomains() {
+		Map<String, String> response = new LinkedHashMap<>();
+
+		List<Document> data = domainService.getAllDomains();
+
+		if ((data.isEmpty())) {
+			response.put("status", "Failed");
+			response.put("errorCode", Constants.DATA_NOT_FOUND);
+			response.put("errorMessage", "No domains available in the collection.");
+			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+		}
+		return new ResponseEntity<>(mapper.convertValue(new Document("domains", data), ObjectNode.class), HttpStatus.OK);
+	}
 
 	@PutMapping("/updateTenantConfig")
 	public ResponseEntity<JsonNode> updateTenantConfig(@RequestBody JsonNode requestJson, @RequestParam String clientUrl) {
@@ -158,13 +250,13 @@ public class ComponentController {
 	}
 
 	// create tenantConfig
-	@PostMapping(path = "/convertMappingFileToJsonV2", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-	public Map<String,Object> convertMappingFileToJsonV2(@RequestParam("file") MultipartFile file, @RequestParam String domainUrl) {
+	@PostMapping(path = "/convertMappingFileToJson", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
+	public Map<String,Object> convertMappingFileToJson(@RequestParam("file") MultipartFile file, @RequestParam String domainUrl) {
 		Map<String,Object> response;
 		try {
 			domainUrl=utility.getClientName(domainUrl);
 
-			response=convertMappingFileToJsonV2.convertMappingFileToJson(file.getInputStream(), domainUrl);
+			response=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainUrl);
 			Document jsonData=mapper.convertValue(response, Document.class);
 			MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainUrl).getCollection("tenantConfig");
 			Document mappingFileDocument=tenantConfigCollection.find().first();
