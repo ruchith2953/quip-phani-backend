@@ -142,25 +142,6 @@ public class ComponentController {
 		return new ResponseEntity<>(mapper.convertValue(new Document("domains", data), ObjectNode.class), HttpStatus.OK);
 	}
 
-	@PutMapping("/updateTenantConfig")
-	public ResponseEntity<JsonNode> updateTenantConfig(@RequestBody JsonNode requestJson, @RequestParam String clientUrl) {
-		Map<String, Object> responseMap = new HashMap<>();
-
-		String clientName=utility.getClientName(clientUrl);
-		JsonNode response = null;
-		try {
-			Map<String, Object> request = mapper.treeToValue(requestJson, Map.class);
-			UpdateResult result = tenantConfigService.updateTenantConfig(request,clientName);
-			responseMap.put("result", result);
-		} catch (Exception ex) {
-			responseMap.put("error", ex.getMessage());
-			response = mapper.convertValue(responseMap, JsonNode.class);
-			return ResponseEntity.internalServerError().body(response);
-		}
-		response = mapper.convertValue(responseMap, JsonNode.class);
-		return ResponseEntity.ok(response);
-	}
-
 	@GetMapping("/ingestAemData")
 	public Map<String, Object> ingestAemData(@RequestParam String userName, @RequestParam String domainUrl) {
 
@@ -233,6 +214,12 @@ public class ComponentController {
 		return new ResponseEntity<>(response, HttpStatus.OK);
 	}
 
+	@GetMapping("/reviewChanges")
+	public JsonNode reviewChanges(@RequestParam String domainUrl) {
+		String domainName=utility.getClientName(domainUrl);
+		return mapper.convertValue(dataVersionService.displayData(domainName), JsonNode.class);
+	}
+
 	// mongo versioning
 	@PostMapping("/revertBackData")
 	public JsonNode revertBackData(@RequestBody JsonNode document) {
@@ -241,12 +228,6 @@ public class ComponentController {
 		String documentId=document.get("documentId").asText();
 		String clientName=document.get("clientName").asText();
 		return mapper.convertValue(dataVersionService.revertBack(filterById,documentId, clientName), JsonNode.class);
-	}
-
-	@GetMapping("/reviewChanges")
-	public JsonNode reviewChanges(@RequestParam String domainUrl) {
-		String domainName=utility.getClientName(domainUrl);
-		return mapper.convertValue(dataVersionService.displayData(domainName), JsonNode.class);
 	}
 
 	// create tenantConfig
@@ -316,5 +297,24 @@ public class ComponentController {
 
 		response.put("response", componentDataResponse);
 		return mapper.convertValue(response, JsonNode.class);
+	}
+
+	@PutMapping("/updateTenantConfig")
+	public ResponseEntity<JsonNode> updateTenantConfig(@RequestBody JsonNode requestJson, @RequestParam String clientUrl) {
+		Map<String, Object> responseMap = new HashMap<>();
+
+		String clientName=utility.getClientName(clientUrl);
+		JsonNode response = null;
+		try {
+			Map<String, Object> request = mapper.treeToValue(requestJson, Map.class);
+			UpdateResult result = tenantConfigService.updateTenantConfig(request,clientName);
+			responseMap.put("result", result);
+		} catch (Exception ex) {
+			responseMap.put("error", ex.getMessage());
+			response = mapper.convertValue(responseMap, JsonNode.class);
+			return ResponseEntity.internalServerError().body(response);
+		}
+		response = mapper.convertValue(responseMap, JsonNode.class);
+		return ResponseEntity.ok(response);
 	}
 }
