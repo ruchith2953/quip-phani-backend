@@ -22,10 +22,13 @@ public class Constants {
 
     // data field names
     public static final String FIELD_COMPONENTS_DATA="components";
-    public static final String FIELD_XF_DATA="xfData";
-    public static final String FIELD_FORMS_DATA="formsData";
-    public static final String FIELD_PAGE_DATA ="pageData";
 
-    // update xf data API
-    public  static final String UPDATE_XF_DATA_API="http://100.24.248.226:9091/component/updateMasterJsonXFData";
+    public static final String AUTHOR_DOMAIN_DB ="author-domains";
+    public static final String AUTHOR_DOMAIN_URLS_COLLECTION ="domain_urls";
+    public static final String EMPTY_VALUES="1001"; // null or empty checks
+    public static final String DATA_NOT_FOUND="1002"; // no content or data not found checks [operations based on DB]
+    public static final String CREATION_FAILED="1003";// creation check [operation based on DB]
+    public static final String INVALID_DATA="1004"; // data validation check
+    public static final String EMPTY_FIELDS ="1005" ; // input fields checks
+
 }

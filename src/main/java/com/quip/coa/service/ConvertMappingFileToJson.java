@@ -15,7 +15,7 @@ import java.io.InputStream;
 import java.util.*;
 
 @Service
-public class ConvertMappingFileToJsonV2 {
+public class ConvertMappingFileToJson {
     public static final int COMPONENT_INTERACTION_ID_COLUMN_NUMBER=5;
 
     public Map<String, Object> convertMappingFileToJson(InputStream inputFile, String domain) throws IOException{
