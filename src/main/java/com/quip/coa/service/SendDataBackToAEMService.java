@@ -2,7 +2,8 @@ package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.mongodb.client.MongoDatabase;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -35,11 +36,10 @@ public class SendDataBackToAEMService {
             String componentDataString=objectMapper.writeValueAsString(componentsData);
             CloseableHttpClient httpClient = HttpClients.createDefault();
             HttpPost postRequest = new HttpPost(Constants.UPDATE_DATA_TO_AEM);
-            postRequest.setHeader("Content-Type", "application/json");
             String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
             String encodedAuth = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-            postRequest.setHeader("Authorization", "Basic " + encodedAuth);
-            postRequest.setHeader("Content-Type", "application/json");
+            postRequest.setHeader(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
+            postRequest.setHeader(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
             StringEntity entity = new StringEntity(componentDataString);
             postRequest.setEntity(entity);
 
@@ -48,14 +48,21 @@ public class SendDataBackToAEMService {
                 JsonNode data=objectMapper.readTree(responseString);
 
                 String activityName="aem_update_success";
-                if (updateActivityTracking.updateActivity(userName,domain,activityName,clientName,"component")){
+                if (updateActivityTracking.updateActivity(userName,domain,activityName,clientName,Constants.COMPONENT)){
                     //after sending data to aem delete it
-                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component").deleteMany(new Document());
-                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("invalid_component").deleteMany(new Document());
-                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("aemform_documents").deleteMany(new Document());
-                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("masterJson").deleteMany(new Document());
-                    // delete the versionCollection also
-                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection").deleteMany(new Document());
+                    MongoDatabase mongoDatabase = MongoClientSingleton.getClient().getDatabase(clientName);
+
+                    String[] collections = {
+                            Constants.COMPONENT,
+                            Constants.INVALID_COMPONENT,
+                            Constants.AEMFORM_DOCUMENTS,
+                            Constants.MASTER_JSON,
+                            Constants.VERSION_COLLECTION
+                    };
+
+                    for (String collectionName : collections) {
+                        mongoDatabase.getCollection(collectionName).deleteMany(new Document());
+                    }
                     return objectMapper.convertValue(data,JsonNode.class);
                 }
                 response.put("status","failed");

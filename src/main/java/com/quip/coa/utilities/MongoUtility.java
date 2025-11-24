@@ -1,7 +1,6 @@
 package com.quip.coa.utilities;
 
 import com.mongodb.ObjectId;
-import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -10,7 +9,7 @@ import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.stereotype.Service;

@@ -2,7 +2,7 @@ package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import org.bson.Document;
 import org.springframework.stereotype.Service;
 
@@ -22,7 +22,6 @@ public class TenantConfigService {
 		Document setDoc = new Document();
 		setDoc.put("$set", update);
 
-		UpdateResult result = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig").updateOne(query, setDoc);
-		return result;
+		return MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig").updateOne(query, setDoc);
 	}
 }
