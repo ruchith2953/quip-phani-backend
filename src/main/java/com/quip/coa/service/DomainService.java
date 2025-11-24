@@ -31,8 +31,16 @@ public class DomainService {
     }
 
     public List<Document> getAllDomains() {
-        Bson projection = Projections.exclude("_id");
-        return mongoUtility.findAll(Constants.AUTHOR_DOMAIN_DB,Constants.AUTHOR_DOMAIN_URLS_COLLECTION,projection);
+        List<Document> domains = mongoUtility.findAll(Constants.AUTHOR_DOMAIN_DB,Constants.AUTHOR_DOMAIN_URLS_COLLECTION);
+        for(Document document: domains) {
+            String id = document.get("_id").toString();
+            document.append("id", id);
+            document.remove("_id");
+            String createdAt = document.get("createdAt").toString();
+            document.append("createdDate", createdAt);
+            document.remove("createdAt");
+        }
+        return domains;
     }
 
 }

@@ -131,15 +131,14 @@ public class ComponentController {
 	public ResponseEntity<ObjectNode> getAllDomains() {
 		Map<String, String> response = new LinkedHashMap<>();
 
-		List<Document> data = domainService.getAllDomains();
-
-		if ((data.isEmpty())) {
+		List<Document> domains = domainService.getAllDomains();
+		if ((domains.isEmpty())) {
 			response.put("status", "Failed");
 			response.put("errorCode", Constants.DATA_NOT_FOUND);
 			response.put("errorMessage", "No domains available in the collection.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
-		return new ResponseEntity<>(mapper.convertValue(new Document("domains", data), ObjectNode.class), HttpStatus.OK);
+		return new ResponseEntity<>(mapper.convertValue(new Document("domains", domains), ObjectNode.class), HttpStatus.OK);
 	}
 
 	@GetMapping("/ingestAemData")
