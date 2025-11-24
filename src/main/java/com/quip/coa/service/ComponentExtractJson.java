@@ -1,27 +1,45 @@
 package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.quip.coa.helper.Utility;
+import com.quip.coa.utilities.Constants;
+import com.quip.coa.utilities.HttpUtilities;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.env.Environment;
 import org.springframework.stereotype.Service;
 
-import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
+
 
 @Service
 public class ComponentExtractJson {
 	@Autowired
+	private Environment environment;
+
+	@Autowired
 	ActivityTracking activityTracking;
-	private final ObjectMapper mapper = new ObjectMapper();
 
-	Utility utility = new Utility();
+	@Autowired
+	private HttpUtilities httpUtilities;
 
-	public JsonNode componentExtractJson(String userName, String apiUrl, String clientName) throws Exception {
-		String auth = "Authorization: Basic cXVpcC1zZXJ2aWNlLXVzZXI6cXVpcFNlcnZpY2VVc2Vy=\n";
-		HttpResponse<?> cmp = utility.utilityMethod(apiUrl, auth);
-		if(cmp.statusCode() == 200)
-			activityTracking.addActivity(userName, apiUrl, "aem_data_extract", clientName, "component");
-		String cmp1 = (String) cmp.body();
-		return mapper.readTree(cmp1);
-	}
-}
+	public JsonNode componentExtractJson(String userName, String apiUrl, String clientName) {
+
+		Map<String, String> headers = new HashMap<>();
+		String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
+		String encodedAuth = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
+		headers.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
+		headers.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
+
+		// Execute GET request
+		JsonNode responseJson = httpUtilities.httpGetResponse(apiUrl, headers);
+		if (responseJson == null) {
+			throw new RuntimeException("Failed to fetch component JSON from API: " + apiUrl);
+		}
+
+		// Track activity
+		activityTracking.addActivity(userName, apiUrl, Constants.ACTIVITY_TYPE, clientName, Constants.COMPONENT);
+
+		return responseJson;
+	}}

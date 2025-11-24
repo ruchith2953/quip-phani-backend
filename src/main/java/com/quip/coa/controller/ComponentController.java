@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
-import com.quip.coa.helper.Utility;
+import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.utilities.Utility;
 import com.quip.coa.service.*;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -61,38 +61,38 @@ public class ComponentController {
 		Map<String, Object> response = new LinkedHashMap<>();
 
 		if (domainName==null ){
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.EMPTY_FIELDS);
-			response.put("errorMessage", "domainName field is mandatory.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "domainName field is mandatory.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 
 		if (domainName.trim().isEmpty()) {
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.EMPTY_VALUES);
-			response.put("errorMessage", "Data Invalid. domainName cannot be empty.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainName cannot be empty.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 
 		if (domainUrl==null ){
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.EMPTY_FIELDS);
-			response.put("errorMessage", "domainUrl field is mandatory.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "domainUrl field is mandatory.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 
 		UrlValidator urlValidator = new UrlValidator();
 		if (domainUrl.trim().isEmpty()) {
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.EMPTY_VALUES);
-			response.put("errorMessage", "Data Invalid. domainUrl cannot be empty.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainUrl cannot be empty.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 
 		if (!(urlValidator.isValid(domainUrl))) {
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.INVALID_DATA);
-			response.put("errorMessage", "Data Invalid. Please enter valid domainUrl.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.INVALID_DATA);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. Please enter valid domainUrl.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 
@@ -100,7 +100,7 @@ public class ComponentController {
 
 		Map<String,Object> mapperResponse=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainAuthor);
 		Document jsonData=mapper.convertValue(mapperResponse, Document.class);
-		MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainAuthor).getCollection("tenantConfig");
+		MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainAuthor).getCollection(Constants.TENANT_CONFIG_COLLECTION);
 		Document mappingFileDocument=tenantConfigCollection.find().first();
 		if (mappingFileDocument==null){
 			tenantConfigCollection.insertOne(jsonData);
@@ -116,13 +116,13 @@ public class ComponentController {
 
 		String id = domainService.postDomain(domainData);
 		    if (id == null) {
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.CREATION_FAILED);
-			response.put("errorMessage", "Domain creation is failed as domainName or domainUrl already exists. Try using another values.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.CREATION_FAILED);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainName or domainUrl already exists. Try using another values.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		    }
-		response.put("status", "Success");
-		response.put("response", "Domain created successfully. Domain can be accessed by Id: "+id);
+		response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
+		response.put(Constants.FIELD_RESPONSE, "Domain created successfully. Domain can be accessed by Id: "+id);
 		return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 	}
 
@@ -133,9 +133,9 @@ public class ComponentController {
 
 		List<Document> domains = domainService.getAllDomains();
 		if ((domains.isEmpty())) {
-			response.put("status", "Failed");
-			response.put("errorCode", Constants.DATA_NOT_FOUND);
-			response.put("errorMessage", "No domains available in the collection.");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_ERROR_CODE, Constants.DATA_NOT_FOUND);
+			response.put(Constants.FIELD_ERROR_MESSAGE, "No domains available in the collection.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		}
 		return new ResponseEntity<>(mapper.convertValue(new Document("domains", domains), ObjectNode.class), HttpStatus.OK);
@@ -151,7 +151,7 @@ public class ComponentController {
 		try {
 			boolean initAem = (boolean) activityStatusMap.get("initAEM");
 			if (!initAem) {
-				result.put("message", activityStatusMap.get("message").toString());
+				result.put(Constants.FIELD_MESSAGE, activityStatusMap.get(Constants.FIELD_MESSAGE).toString());
 				result.put("result", Collections.EMPTY_MAP);
 				return result;
 			} else {
@@ -161,16 +161,16 @@ public class ComponentController {
 				Document metadata= mapper.convertValue(aemData.get("metadata"),Document.class);
 				metadata.put("user_email",userName);
 				masterJson.put("metadata",metadata);
-				MongoClientSingleton.getClient().getDatabase(domainName).getCollection("masterJson").insertOne(masterJson);
-				result.put("message", "data ingested in QUIP");
+				MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.MASTER_JSON_COLLECTION).insertOne(masterJson);
+				result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
 				result.put("result", aemData);
 				activityTracking.updateActivity(userName, domainUrl, "aem_data_ingestion",domainName, "component");
 			}
 		} catch (Exception exception) {
-			result.put("status","failed");
-			result.put("message", "Failed to ingest data: "+ exception.getClass().getName());
+			result.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
+			result.put(Constants.FIELD_MESSAGE, "Failed to ingest data: "+ exception.getClass().getName());
 			result.put("result", Collections.emptyMap());
-			result.put("response",exception.getMessage());
+			result.put(Constants.FIELD_RESPONSE,exception.getMessage());
 			return result;
 		}
 		return result;
@@ -193,8 +193,8 @@ public class ComponentController {
 		String id = updateDocument.get("id");
 
 		if (id == null || id.isEmpty()) {
-			response.put("status", "failed");
-			response.put("message", "Document id should not be empty or null, please provide a valid id");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE, "Document id should not be empty or null, please provide a valid id");
 			return new ResponseEntity<>(response, HttpStatus.OK);
 		}
 
@@ -203,11 +203,11 @@ public class ComponentController {
 			response = updateComponentDataService.updateComponent(domainName, updateDocument, userName);
 		} catch (Exception e) {
 			if (e.getMessage().equalsIgnoreCase("state should be: hexString has 24 characters")) {
-				response.put("status", "failed");
-				response.put("message", "document id should be valid ");
+				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+				response.put(Constants.FIELD_MESSAGE, "document id should be valid ");
 			} else {
-				response.put("status", "failed");
-				response.put("message", "exception occurred:" + e.getMessage());
+				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+				response.put(Constants.FIELD_MESSAGE, "exception occurred:" + e.getMessage());
 			}
 		}
 		return new ResponseEntity<>(response, HttpStatus.OK);
@@ -238,7 +238,7 @@ public class ComponentController {
 
 			response=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainUrl);
 			Document jsonData=mapper.convertValue(response, Document.class);
-			MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainUrl).getCollection("tenantConfig");
+			MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainUrl).getCollection(Constants.TENANT_CONFIG_COLLECTION);
 			Document mappingFileDocument=tenantConfigCollection.find().first();
 			if (mappingFileDocument==null){
 				tenantConfigCollection.insertOne(jsonData);
@@ -250,9 +250,9 @@ public class ComponentController {
 			return response;
 		} catch (Exception e) {
 			response=new HashMap<>();
-			response.put("status","failed");
-			response.put("message","failed to update master mapping data");
-			response.put("errorResponse",e.getMessage());
+			response.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE,"failed to update master mapping data");
+			response.put(Constants.FIELD_ERROR_RESPONSE,e.getMessage());
 			return response;
 		}
 	}
@@ -266,35 +266,35 @@ public class ComponentController {
 		query.put("activityType","component");
 
 		// extract the activity collection
-		MongoCollection<Document> userActivity=MongoClientSingleton.getClient().getDatabase(domainName).getCollection("activityInfo");
+		MongoCollection<Document> userActivity=MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.ACTIVITY_INFO_COLLECTION);
 
 		// check activity for component ingestion and check if activity is in progress
 		Document componentActivity=userActivity.find(query).sort(new Document("_id", -1)).first();
 		if (componentActivity==null || !componentActivity.get("activityCycle").equals("inprogress")){
-			response.put("status", "failed");
-			response.put("message", "No data found for domain '" + domainName + "'. Please Ingest data");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE, "No data found for domain '" + domainName + "'. Please Ingest data");
 			return mapper.convertValue(response, JsonNode.class);
 		}
 
 		// check if activity is in progress or not
 		if (!componentActivity.get("activityCycle").equals("inprogress")){
-			response.put("status", "failed");
-			response.put("message", "Activity is not in progress for domain '" + domainName + "'. Please Ingest data");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE, "Activity is not in progress for domain '" + domainName + "'. Please Ingest data");
 			return mapper.convertValue(response, JsonNode.class);
 		}
 
 		// check if userName in activity is as same as current user
 		if (!StringUtils.equals(componentActivity.get("userName").toString(),(userName))){
-			response.put("status", "failed");
-			response.put("message", "The domain '" + domainName + "' is owned by '" + componentActivity.get("userName").toString() + "'. Kindly reach out to the domain owner for further assistance");
-			response.put("response", userName+": you do not have permission to update this domain");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE, "The domain '" + domainName + "' is owned by '" + componentActivity.get("userName").toString() + "'. Kindly reach out to the domain owner for further assistance");
+			response.put(Constants.FIELD_RESPONSE, userName+": you do not have permission to update this domain");
 			return mapper.convertValue(response, JsonNode.class);
 		}
 
 		// fetching for components
 		Map<String,Object> componentDataResponse=mapper.convertValue(sendDataBackToAEMService.connectToAEM(mapper.convertValue(masterJSONComponentDataService.convertMasterJsonData(domainName), JsonNode.class),domainName,domainUrl,userName), new TypeReference<Map<String, Object>>() {});
 
-		response.put("response", componentDataResponse);
+		response.put(Constants.FIELD_RESPONSE, componentDataResponse);
 		return mapper.convertValue(response, JsonNode.class);
 	}
 
@@ -305,11 +305,11 @@ public class ComponentController {
 		String clientName=utility.getClientName(clientUrl);
 		JsonNode response = null;
 		try {
-			Map<String, Object> request = mapper.treeToValue(requestJson, Map.class);
+			Map<String, Object> request = mapper.treeToValue(requestJson, new TypeReference<Map<String, Object>>() {});
 			UpdateResult result = tenantConfigService.updateTenantConfig(request,clientName);
 			responseMap.put("result", result);
 		} catch (Exception ex) {
-			responseMap.put("error", ex.getMessage());
+			responseMap.put(Constants.FIELD_ERROR_MESSAGE, ex.getMessage());
 			response = mapper.convertValue(responseMap, JsonNode.class);
 			return ResponseEntity.internalServerError().body(response);
 		}

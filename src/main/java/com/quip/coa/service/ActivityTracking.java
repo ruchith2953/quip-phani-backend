@@ -3,7 +3,7 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.model.Activity;
 import org.bson.Document;
 import org.springframework.stereotype.Service;

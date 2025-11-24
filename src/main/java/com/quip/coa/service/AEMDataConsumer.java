@@ -4,8 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.result.InsertOneResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
-import com.quip.coa.helper.Utility;
+import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.utilities.Utility;
 import com.quip.coa.jsonexcel.TenantConfigJsonParserService;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -25,7 +25,7 @@ public class AEMDataConsumer {
 	@Autowired
 	private TenantConfigJsonParserService tenantConfigJsonParserService;
 
-	private ObjectMapper mapper = new ObjectMapper();
+	private final ObjectMapper mapper = new ObjectMapper();
 
 	public Map<String, Object> processAEMData(String clientUrl, String userName, String clientName) throws Exception {
 		Map<String, Object> aemData = null;
