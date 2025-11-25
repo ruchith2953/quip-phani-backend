@@ -1,15 +1,11 @@
 package com.quip.coa.service;
 
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.model.Projections;
 import com.mongodb.client.result.InsertOneResult;
 import com.quip.coa.utilities.Constants;
 import com.quip.coa.utilities.MongoUtility;
-import org.bson.BsonDocument;
 import org.bson.Document;
-import org.bson.conversions.Bson;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -37,7 +33,7 @@ public class DomainService {
             document.append("id", id);
             document.remove("_id");
             String createdAt = document.get("createdAt").toString();
-            document.append("createdDate", createdAt);
+            document.put("domainName", document.get("domainName")+" - "+createdAt);
             document.remove("createdAt");
         }
         return domains;

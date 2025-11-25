@@ -56,23 +56,9 @@ public class ComponentController {
 
 	// create a domain
 	@PostMapping(value = "/createDomain", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<ObjectNode> createDomain(@RequestPart("file") MultipartFile file, @RequestPart("domainName") String domainName, @RequestPart("domainUrl") String domainUrl) throws IOException {
+	public ResponseEntity<ObjectNode> createDomain(@RequestPart("file") MultipartFile file, @RequestPart("domainUrl") String domainUrl) throws IOException {
 
 		Map<String, Object> response = new LinkedHashMap<>();
-
-		if (domainName==null ){
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "domainName field is mandatory.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
-
-		if (domainName.trim().isEmpty()) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainName cannot be empty.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
 
 		if (domainUrl==null ){
 			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
@@ -110,6 +96,7 @@ public class ComponentController {
 			tenantConfigCollection.updateOne(new Document("_id",id), new Document("$set",jsonData));
 		}
 
+		String domainName=utility.getDomainName(domainUrl);
 		Map<String, String> domainData = new HashMap<>();
 		domainData.put("domainName", domainName);
 		domainData.put("domainUrl", domainUrl);
@@ -118,7 +105,7 @@ public class ComponentController {
 		    if (id == null) {
 			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
 			response.put(Constants.FIELD_ERROR_CODE, Constants.CREATION_FAILED);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainName or domainUrl already exists. Try using another values.");
+			response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainUrl already exists. Try using another values.");
 			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
 		    }
 		response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
@@ -142,12 +129,12 @@ public class ComponentController {
 	}
 
 	@GetMapping("/ingestAemData")
-	public Map<String, Object> ingestAemData(@RequestParam String userName, @RequestParam String domainUrl) {
+	public Map<String, Object> ingestAemData(@RequestParam String userEmail, @RequestParam String domainUrl) {
 
 		String domainName=utility.getClientName(domainUrl);
 
 		Map<String, Object> result = new HashMap<>();
-		Map<String, Object> activityStatusMap = activityTracking.initAemExtract(userName, domainUrl,domainName);
+		Map<String, Object> activityStatusMap = activityTracking.initAemExtract(userEmail, domainUrl,domainName);
 		try {
 			boolean initAem = (boolean) activityStatusMap.get("initAEM");
 			if (!initAem) {
@@ -155,16 +142,16 @@ public class ComponentController {
 				result.put("result", Collections.EMPTY_MAP);
 				return result;
 			} else {
-				Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userName, domainName);
+				Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
 				Document masterJson = mapper.convertValue(aemData, Document.class);
 				// adding user email to AEM meta data
 				Document metadata= mapper.convertValue(aemData.get("metadata"),Document.class);
-				metadata.put("user_email",userName);
+				metadata.put("user_email",userEmail);
 				masterJson.put("metadata",metadata);
 				MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.MASTER_JSON_COLLECTION).insertOne(masterJson);
 				result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
 				result.put("result", aemData);
-				activityTracking.updateActivity(userName, domainUrl, "aem_data_ingestion",domainName, "component");
+				activityTracking.updateActivity(userEmail, domainUrl, "aem_data_ingestion",domainName, "component");
 			}
 		} catch (Exception exception) {
 			result.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);

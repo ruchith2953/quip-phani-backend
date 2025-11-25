@@ -36,6 +36,8 @@ public class Constants {
     public static final String EMPTY_FIELDS ="1005" ; // input fields checks
 
     public static final String AUTHORIZATION_HEADER = "Authorization";
+    public static final String CONTENT_EXTRACT_HEADER_FIELD = "mapping";
+    public static final String CONTENT_EXTRACT_HEADER_VALUE = "content-extract";
     public static final String CONTENT_TYPE = "Content-Type";
     public static final String ACCEPT_JSON = "application/json";
     public static final String ACTIVITY_TYPE = "aem_data_extract";
