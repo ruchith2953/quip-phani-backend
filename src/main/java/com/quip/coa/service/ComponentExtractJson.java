@@ -30,6 +30,7 @@ public class ComponentExtractJson {
 		String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
 		String encodedAuth = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
 		headers.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
+		headers.put(Constants.CONTENT_EXTRACT_HEADER_FIELD, Constants.CONTENT_EXTRACT_HEADER_VALUE);
 		headers.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
 
 		// Execute GET request
