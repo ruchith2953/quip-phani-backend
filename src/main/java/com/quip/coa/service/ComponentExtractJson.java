@@ -23,7 +23,7 @@ public class ComponentExtractJson {
 	@Autowired
 	private HttpUtilities httpUtilities;
 
-	public JsonNode componentExtractJson(String userName, String apiUrl, String clientName) {
+	public JsonNode componentExtractJson(String userName, String clientUrl, String clientName,String mapping) {
 
 		Map<String, String> headers = new HashMap<>();
 		String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
@@ -31,6 +31,7 @@ public class ComponentExtractJson {
 		headers.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
 		headers.put(Constants.CONTENT_EXTRACT_HEADER_FIELD, Constants.CONTENT_EXTRACT_HEADER_VALUE);
 		headers.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
+		String apiUrl=String.format(Constants.COMPONENT_EXTRACT_BASE_URL,clientUrl,mapping);
 
 		// Execute GET request
 		JsonNode responseJson = httpUtilities.httpGetResponse(apiUrl, headers);
@@ -39,7 +40,7 @@ public class ComponentExtractJson {
 		}
 
 		// Track activity
-		activityTracking.addActivity(userName, apiUrl, Constants.ACTIVITY_TYPE, clientName, Constants.COMPONENT);
+		activityTracking.addActivity(userName, clientUrl, Constants.ACTIVITY_TYPE, clientName, Constants.COMPONENT);
 
 		return responseJson;
 	}}

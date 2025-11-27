@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCursor;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import com.quip.coa.utilities.Utility;
 import com.quip.coa.jsonexcel.TenantConfigJsonParserService;
 import com.quip.coa.utilities.Constants;

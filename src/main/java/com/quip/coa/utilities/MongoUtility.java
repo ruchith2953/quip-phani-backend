@@ -9,7 +9,7 @@ import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.stereotype.Service;

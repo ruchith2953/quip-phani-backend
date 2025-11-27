@@ -21,7 +21,7 @@ public class HttpUtilities {
 
     @Autowired
     private ObjectMapper objectMapper;
-
+    @Autowired
     private CloseableHttpClient httpClient;
 
     // ---- HTTP GET ----

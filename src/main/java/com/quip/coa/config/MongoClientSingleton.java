@@ -1,4 +1,4 @@
-package com.quip.coa.dbConfig;
+package com.quip.coa.config;
 
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;

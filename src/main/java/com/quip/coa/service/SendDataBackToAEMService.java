@@ -3,7 +3,7 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoDatabase;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
