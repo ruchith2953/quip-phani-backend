@@ -6,7 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import com.quip.coa.utilities.Utility;
 import com.quip.coa.service.*;
 import com.quip.coa.utilities.Constants;
@@ -129,7 +129,7 @@ public class ComponentController {
 	}
 
 	@GetMapping("/ingestAemData")
-	public Map<String, Object> ingestAemData(@RequestParam String userEmail, @RequestParam String domainUrl) {
+	public Map<String, Object> ingestAemData(@RequestParam String userEmail, @RequestParam String domainUrl, @RequestParam String mapping) {
 
 		String domainName=utility.getClientName(domainUrl);
 
@@ -142,7 +142,7 @@ public class ComponentController {
 				result.put("result", Collections.EMPTY_MAP);
 				return result;
 			} else {
-				Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
+				Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName,mapping);
 				Document masterJson = mapper.convertValue(aemData, Document.class);
 				// adding user email to AEM meta data
 				Document metadata= mapper.convertValue(aemData.get("metadata"),Document.class);

@@ -2,7 +2,7 @@ package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import org.bson.Document;
 import org.springframework.stereotype.Service;
 

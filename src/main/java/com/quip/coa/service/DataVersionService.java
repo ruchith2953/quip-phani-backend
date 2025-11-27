@@ -8,7 +8,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import com.quip.coa.jsonexcel.TenantConfigJsonParserService;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;

@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.result.InsertOneResult;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.config.MongoClientSingleton;
 import com.quip.coa.utilities.Utility;
 import com.quip.coa.jsonexcel.TenantConfigJsonParserService;
 import com.quip.coa.utilities.Constants;
@@ -27,11 +27,11 @@ public class AEMDataConsumer {
 
 	private final ObjectMapper mapper = new ObjectMapper();
 
-	public Map<String, Object> processAEMData(String clientUrl, String userName, String clientName) throws Exception {
+	public Map<String, Object> processAEMData(String clientUrl, String userName, String clientName,String mapping) throws Exception {
 		Map<String, Object> aemData = null;
 		Set<String> interactionIdsSet = new LinkedHashSet<>();
 		Set<String> modalReferencePaths = new HashSet<>();
-		JsonNode aemDataJson = componentExtractJson.componentExtractJson(userName, clientUrl,clientName);
+		JsonNode aemDataJson = componentExtractJson.componentExtractJson(userName, clientUrl,clientName,mapping);
 
 		aemData = mapper.convertValue(aemDataJson, Map.class);
 		Map<String, Object> componentsDataCopy = new HashMap<>();
