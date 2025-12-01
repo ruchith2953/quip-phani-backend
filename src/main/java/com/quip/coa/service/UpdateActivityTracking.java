@@ -1,7 +1,7 @@
 package com.quip.coa.service;
 
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.config.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import org.bson.Document;
 import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;

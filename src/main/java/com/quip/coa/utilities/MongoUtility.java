@@ -9,7 +9,7 @@ import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertManyResult;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.config.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 import org.springframework.stereotype.Service;
@@ -108,4 +108,13 @@ public class MongoUtility {
     public DeleteResult deleteMany(String dbName, String collName, Bson filter) {
         return getCollection(dbName, collName).deleteMany(filter);
     }
+
+    public static Document getDocumentByPath(String path,String domainName) {
+        return MongoClientSingleton.getClient().getDatabase(domainName).getCollection("component_documents").find(new Document("componentPath",path)).first();
+    }
+
+    public static void updateDocument(String domainName, String path, Document updateDocument) {
+        MongoClientSingleton.getClient().getDatabase(domainName).getCollection("component_documents").updateOne(new Document("componentPath",path), new Document("$set", updateDocument));
+    }
+
 }

@@ -1,12 +1,15 @@
 package com.quip.coa.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.mongodb.client.MongoCollection;
-import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.config.MongoClientSingleton;
+import com.mongodb.client.result.DeleteResult;
+import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.model.ComponentDocument;
+import com.quip.coa.utilities.MongoUtility;
 import com.quip.coa.utilities.Utility;
 import com.quip.coa.service.*;
 import com.quip.coa.utilities.Constants;
@@ -15,12 +18,12 @@ import org.apache.commons.validator.routines.UrlValidator;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.util.*;
@@ -29,224 +32,171 @@ import java.util.*;
 @RequestMapping("/content")
 public class ComponentController {
 
-	@Autowired
-	private TenantConfigService tenantConfigService;
-	@Autowired
-	private AEMDataConsumer aemDataConsumer;
-	@Autowired
-	private ActivityTracking activityTracking;
-	@Autowired
-	private Utility utility;
-	@Autowired
-	private ExportComponentsDataToJsonService exportComponentsDataToJsonService;
-	@Autowired
-	private UpdateComponentDataService updateComponentDataService;
-	@Autowired
-	private SendDataBackToAEMService sendDataBackToAEMService;
-	@Autowired
-	private MasterJSONComponentDataService masterJSONComponentDataService;
-	@Autowired
-	private DataVersionService dataVersionService;
-	@Autowired
-	private ConvertMappingFileToJson convertMappingFileToJson;
-	@Autowired
-	private DomainService domainService;
+    private static final Logger log = LoggerFactory.getLogger(ComponentController.class);
+    @Autowired
+    private AEMDataConsumer aemDataConsumer;
+    @Autowired
+    private ActivityTracking activityTracking;
+    @Autowired
+    private Utility utility;
+    @Autowired
+    private SendDataBackToAEMService sendDataBackToAEMService;
+    @Autowired
+    private DataVersionService dataVersionService;
+    @Autowired
+    private DomainService domainService;
+    @Autowired
+    private AemService service;
 
-	private static final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper mapper = new ObjectMapper();
 
-	// create a domain
-	@PostMapping(value = "/createDomain", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-	public ResponseEntity<ObjectNode> createDomain(@RequestPart("file") MultipartFile file, @RequestPart("domainUrl") String domainUrl) throws IOException {
+    // create a domain
+    @PostMapping("/createDomain")
+    public ResponseEntity<ObjectNode> createDomain(@RequestPart("domainUrl") String domainUrl) throws IOException {
 
-		Map<String, Object> response = new LinkedHashMap<>();
+        Map<String, Object> response = new LinkedHashMap<>();
 
-		if (domainUrl==null ){
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "domainUrl field is mandatory.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
+        if (domainUrl == null) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
+            response.put(Constants.FIELD_ERROR_MESSAGE, "domainUrl field is mandatory.");
+            return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+        }
 
-		UrlValidator urlValidator = new UrlValidator();
-		if (domainUrl.trim().isEmpty()) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainUrl cannot be empty.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
+        UrlValidator urlValidator = new UrlValidator();
+        if (domainUrl.trim().isEmpty()) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
+            response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainUrl cannot be empty.");
+            return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+        }
 
-		if (!(urlValidator.isValid(domainUrl))) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.INVALID_DATA);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. Please enter valid domainUrl.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
+        if (!(urlValidator.isValid(domainUrl))) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_ERROR_CODE, Constants.INVALID_DATA);
+            response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. Please enter valid domainUrl.");
+            return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+        }
 
-		String domainAuthor=utility.getClientName(domainUrl);
+        String domainName = utility.getClientName(domainUrl);
+        Map<String, String> domainData = new HashMap<>();
+        domainData.put("domainName", domainName);
+        domainData.put("domainUrl", domainUrl);
 
-		Map<String,Object> mapperResponse=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainAuthor);
-		Document jsonData=mapper.convertValue(mapperResponse, Document.class);
-		MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainAuthor).getCollection(Constants.TENANT_CONFIG_COLLECTION);
-		Document mappingFileDocument=tenantConfigCollection.find().first();
-		if (mappingFileDocument==null){
-			tenantConfigCollection.insertOne(jsonData);
-		}
-		else {
-			String id=mappingFileDocument.get("_id").toString();
-			tenantConfigCollection.updateOne(new Document("_id",id), new Document("$set",jsonData));
-		}
+        String id = domainService.postDomain(domainData);
+        if (id == null) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_ERROR_CODE, Constants.CREATION_FAILED);
+            response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainUrl already exists. Try using another values.");
+            return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+        }
+        response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
+        response.put(Constants.FIELD_RESPONSE, "Domain created successfully. Domain can be accessed by Id: " + id);
+        return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+    }
 
-		String domainName=utility.getDomainName(domainUrl);
-		Map<String, String> domainData = new HashMap<>();
-		domainData.put("domainName", domainName);
-		domainData.put("domainUrl", domainUrl);
+    // fetch all the domains from the database
+    @GetMapping("/getAllDomains")
+    public ResponseEntity<ObjectNode> getAllDomains() {
+        Map<String, String> response = new LinkedHashMap<>();
 
-		String id = domainService.postDomain(domainData);
-		    if (id == null) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.CREATION_FAILED);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainUrl already exists. Try using another values.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		    }
-		response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
-		response.put(Constants.FIELD_RESPONSE, "Domain created successfully. Domain can be accessed by Id: "+id);
-		return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-	}
+        List<Document> domains = domainService.getAllDomains();
+        if ((domains.isEmpty())) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_ERROR_CODE, Constants.DATA_NOT_FOUND);
+            response.put(Constants.FIELD_ERROR_MESSAGE, "No domains available in the collection.");
+            return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
+        }
+        return new ResponseEntity<>(mapper.convertValue(new Document("domains", domains), ObjectNode.class), HttpStatus.OK);
+    }
 
-	// fetch all the domains from the database
-	@GetMapping("/getAllDomains")
-	public ResponseEntity<ObjectNode> getAllDomains() {
-		Map<String, String> response = new LinkedHashMap<>();
+    @DeleteMapping("/deleteDomain/{id}")
+    public ResponseEntity<Map<String, String>> deleteDomain(@PathVariable String id) {
+        log.info("id: {}", id);
+        DeleteResult deleteResult = domainService.deleteDomain(id);
+        if (deleteResult.getDeletedCount() > 0) {
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "errorMessage", "Domain deleted successfully"
+            ));
+        }
+        return ResponseEntity.status(404).body(Map.of(
+                "status", "error",
+                "errorMessage", "Domain not found"
+        ));
+    }
 
-		List<Document> domains = domainService.getAllDomains();
-		if ((domains.isEmpty())) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_ERROR_CODE, Constants.DATA_NOT_FOUND);
-			response.put(Constants.FIELD_ERROR_MESSAGE, "No domains available in the collection.");
-			return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
-		}
-		return new ResponseEntity<>(mapper.convertValue(new Document("domains", domains), ObjectNode.class), HttpStatus.OK);
-	}
+    @GetMapping("/ingestAemData")
+    public Map<String, Object> ingestAemData(@RequestParam String userEmail, @RequestParam String domainUrl, @RequestParam String domainPath) {
 
-	@GetMapping("/ingestAemData")
-	public Map<String, Object> ingestAemData(@RequestParam String userEmail, @RequestParam String domainUrl, @RequestParam String mapping) {
+        String domainName = utility.getClientName(domainUrl);
 
-		String domainName=utility.getClientName(domainUrl);
+        Map<String, Object> result = new HashMap<>();
+        Map<String, Object> activityStatusMap = activityTracking.initAemExtract(userEmail, domainUrl, domainName);
+        try {
+            boolean initAem = (boolean) activityStatusMap.get("initAEM");
+            if (!initAem) {
+                result.put(Constants.FIELD_MESSAGE, activityStatusMap.get(Constants.FIELD_MESSAGE).toString());
+                result.put("result", Collections.EMPTY_MAP);
+                return result;
+            } else {
+                JsonNode rawAEMData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
 
-		Map<String, Object> result = new HashMap<>();
-		Map<String, Object> activityStatusMap = activityTracking.initAemExtract(userEmail, domainUrl,domainName);
-		try {
-			boolean initAem = (boolean) activityStatusMap.get("initAEM");
-			if (!initAem) {
-				result.put(Constants.FIELD_MESSAGE, activityStatusMap.get(Constants.FIELD_MESSAGE).toString());
-				result.put("result", Collections.EMPTY_MAP);
-				return result;
-			} else {
-				Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName,mapping);
-				Document masterJson = mapper.convertValue(aemData, Document.class);
-				// adding user email to AEM meta data
-				Document metadata= mapper.convertValue(aemData.get("metadata"),Document.class);
-				metadata.put("user_email",userEmail);
-				masterJson.put("metadata",metadata);
-				MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.MASTER_JSON_COLLECTION).insertOne(masterJson);
-				result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
-				result.put("result", aemData);
-				activityTracking.updateActivity(userEmail, domainUrl, "aem_data_ingestion",domainName, "component");
-			}
-		} catch (Exception exception) {
-			result.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
-			result.put(Constants.FIELD_MESSAGE, "Failed to ingest data: "+ exception.getClass().getName());
-			result.put("result", Collections.emptyMap());
-			result.put(Constants.FIELD_RESPONSE,exception.getMessage());
-			return result;
-		}
-		return result;
-	}
+                // adding user email to AEM meta data
+                Document metadata = mapper.convertValue(rawAEMData.get("metadata"), Document.class);
+                metadata.put("user_email", userEmail);
+                result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
+            }
+        } catch (Exception exception) {
+            result.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            result.put(Constants.FIELD_MESSAGE, "Failed to ingest data: " + exception.getClass().getName());
+            result.put("result", Collections.emptyMap());
+            result.put(Constants.FIELD_RESPONSE, exception.getMessage());
+            return result;
+        }
+        return result;
+    }
 
-	@GetMapping("/exportComponentsToJSON")
-	public JsonNode returnComponentsToJSON(@RequestParam String userName, @RequestParam String domainUrl) throws Exception {
-		return mapper.convertValue(exportComponentsDataToJsonService.exportToJSON(userName,domainUrl),JsonNode.class);
-	}
+    @GetMapping("/components")
+    public List<ComponentDocument> getAllComponentsData(@RequestParam String domainPath, @RequestParam String domainUrl) throws JsonProcessingException {
 
-	@PutMapping("/updateComponent")
-	public ResponseEntity<Map<String, String>> updateComponent(@RequestBody JsonNode document) {
-		Map<String, String> response = new LinkedHashMap<>();
-		JsonNode updateDocumentNode = document.get("updateDocument");
+        String domainName = utility.getClientName(domainUrl);
+        domainPath = "/content/" + domainName + utility.getPagePath(domainPath);
+        return service.getAll(domainPath, domainName);
+    }
 
-		Map<String, String> updateDocument = mapper.convertValue(updateDocumentNode, Map.class);
+    @PutMapping("/updateProps")
+    public void updateProps(@RequestBody Map<String, Object> body) {
+        String componentPath = body.get("componentPath").toString();
+        String domainName=utility.getClientName(body.get("domainUrl").toString());
+        Document document = MongoUtility.getDocumentByPath(componentPath,domainName);
 
-		String domainUrl = document.get("domainUrl").asText();
-		String userName = document.get("userName").asText();
-		String id = updateDocument.get("id");
+        document.put("cleanProps", body.get("cleanProps"));
+        document.put("rawProps", body.get("rawProps"));
 
-		if (id == null || id.isEmpty()) {
-			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_MESSAGE, "Document id should not be empty or null, please provide a valid id");
-			return new ResponseEntity<>(response, HttpStatus.OK);
-		}
+        MongoUtility.updateDocument(domainName, componentPath, document);
 
-		String domainName=utility.getClientName(domainUrl);
-		try {
-			response = updateComponentDataService.updateComponent(domainName, updateDocument, userName);
-		} catch (Exception e) {
-			if (e.getMessage().equalsIgnoreCase("state should be: hexString has 24 characters")) {
-				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-				response.put(Constants.FIELD_MESSAGE, "document id should be valid ");
-			} else {
-				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
-				response.put(Constants.FIELD_MESSAGE, "exception occurred:" + e.getMessage());
-			}
-		}
-		return new ResponseEntity<>(response, HttpStatus.OK);
-	}
+    }
 
-	@GetMapping("/reviewChanges")
-	public JsonNode reviewChanges(@RequestParam String domainUrl) {
-		String domainName=utility.getClientName(domainUrl);
-		return mapper.convertValue(dataVersionService.displayData(domainName), JsonNode.class);
-	}
+    @GetMapping("/reviewChanges")
+    public JsonNode reviewChanges(@RequestParam String domainUrl) {
+        String domainName = utility.getClientName(domainUrl);
+        return mapper.convertValue(dataVersionService.displayData(domainName), JsonNode.class);
+    }
 
-	// mongo versioning
-	@PostMapping("/revertBackData")
-	public JsonNode revertBackData(@RequestBody JsonNode document) {
-		String currentDocumentId=document.get("currentDocumentId").asText();
-		Document filterById = new Document("_id", new ObjectId(currentDocumentId));
-		String documentId=document.get("documentId").asText();
-		String clientName=document.get("clientName").asText();
-		return mapper.convertValue(dataVersionService.revertBack(filterById,documentId, clientName), JsonNode.class);
-	}
+    // mongo versioning
+    @PostMapping("/revertBackData")
+    public JsonNode revertBackData(@RequestBody JsonNode document) {
+        String currentDocumentId = document.get("currentDocumentId").asText();
+        Document filterById = new Document("_id", new ObjectId(currentDocumentId));
+        String documentId = document.get("documentId").asText();
+        String clientName = document.get("clientName").asText();
+        return mapper.convertValue(dataVersionService.revertBack(filterById, documentId, clientName), JsonNode.class);
+    }
 
-	// create tenantConfig
-	@PostMapping(path = "/convertMappingFileToJson", consumes = { MediaType.MULTIPART_FORM_DATA_VALUE })
-	public Map<String,Object> convertMappingFileToJson(@RequestParam("file") MultipartFile file, @RequestParam String domainUrl) {
-		Map<String,Object> response;
-		try {
-			domainUrl=utility.getClientName(domainUrl);
-
-			response=convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domainUrl);
-			Document jsonData=mapper.convertValue(response, Document.class);
-			MongoCollection<Document> tenantConfigCollection=MongoClientSingleton.getClient().getDatabase(domainUrl).getCollection(Constants.TENANT_CONFIG_COLLECTION);
-			Document mappingFileDocument=tenantConfigCollection.find().first();
-			if (mappingFileDocument==null){
-				tenantConfigCollection.insertOne(jsonData);
-			}
-			else {
-				String id=mappingFileDocument.get("_id").toString();
-				tenantConfigCollection.updateOne(new Document("_id",id), new Document("$set",jsonData));
-			}
-			return response;
-		} catch (Exception e) {
-			response=new HashMap<>();
-			response.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
-			response.put(Constants.FIELD_MESSAGE,"failed to update master mapping data");
-			response.put(Constants.FIELD_ERROR_RESPONSE,e.getMessage());
-			return response;
-		}
-	}
-
-	// send data back to AEM for components,xf,page and form
+	// send data back to AEM for components
 	@GetMapping("/updateAEM")
-	public JsonNode updateAEM(@RequestParam String domainUrl,@RequestParam String userName) {
+	public JsonNode updateAEM(@RequestParam String domainUrl,@RequestParam String userEmail) throws JsonProcessingException {
 		Map<String,Object> response=new LinkedHashMap<>();
 		String domainName=utility.getClientName(domainUrl);
 		Document query=new Document();
@@ -271,36 +221,20 @@ public class ComponentController {
 		}
 
 		// check if userName in activity is as same as current user
-		if (!StringUtils.equals(componentActivity.get("userName").toString(),(userName))){
+		if (!StringUtils.equals(componentActivity.get("userName").toString(),(userEmail))){
 			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
 			response.put(Constants.FIELD_MESSAGE, "The domain '" + domainName + "' is owned by '" + componentActivity.get("userName").toString() + "'. Kindly reach out to the domain owner for further assistance");
-			response.put(Constants.FIELD_RESPONSE, userName+": you do not have permission to update this domain");
+			response.put(Constants.FIELD_RESPONSE, userEmail+": you do not have permission to update this domain");
 			return mapper.convertValue(response, JsonNode.class);
 		}
 
 		// fetching for components
-		Map<String,Object> componentDataResponse=mapper.convertValue(sendDataBackToAEMService.connectToAEM(mapper.convertValue(masterJSONComponentDataService.convertMasterJsonData(domainName), JsonNode.class),domainName,domainUrl,userName), new TypeReference<Map<String, Object>>() {});
+        // fetch metadata
+        JsonNode componentsData= mapper.convertValue(service.reStructureComponentData(service.reconstruct(domainName), domainName), JsonNode.class);
+
+		Map<String,Object> componentDataResponse=mapper.convertValue(sendDataBackToAEMService.connectToAEM(componentsData,domainName,domainUrl,userEmail), new TypeReference<Map<String, Object>>() {});
 
 		response.put(Constants.FIELD_RESPONSE, componentDataResponse);
 		return mapper.convertValue(response, JsonNode.class);
-	}
-
-	@PutMapping("/updateTenantConfig")
-	public ResponseEntity<JsonNode> updateTenantConfig(@RequestBody JsonNode requestJson, @RequestParam String clientUrl) {
-		Map<String, Object> responseMap = new HashMap<>();
-
-		String clientName=utility.getClientName(clientUrl);
-		JsonNode response = null;
-		try {
-			Map<String, Object> request = mapper.treeToValue(requestJson, new TypeReference<Map<String, Object>>() {});
-			UpdateResult result = tenantConfigService.updateTenantConfig(request,clientName);
-			responseMap.put("result", result);
-		} catch (Exception ex) {
-			responseMap.put(Constants.FIELD_ERROR_MESSAGE, ex.getMessage());
-			response = mapper.convertValue(responseMap, JsonNode.class);
-			return ResponseEntity.internalServerError().body(response);
-		}
-		response = mapper.convertValue(responseMap, JsonNode.class);
-		return ResponseEntity.ok(response);
 	}
 }

@@ -23,7 +23,7 @@ public class ComponentExtractJson {
 	@Autowired
 	private HttpUtilities httpUtilities;
 
-	public JsonNode componentExtractJson(String userName, String clientUrl, String clientName,String mapping) {
+	public JsonNode componentExtractJson(String userEmail, String domainUrl, String domainName) {
 
 		Map<String, String> headers = new HashMap<>();
 		String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
@@ -31,16 +31,17 @@ public class ComponentExtractJson {
 		headers.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
 		headers.put(Constants.CONTENT_EXTRACT_HEADER_FIELD, Constants.CONTENT_EXTRACT_HEADER_VALUE);
 		headers.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
-		String apiUrl=String.format(Constants.COMPONENT_EXTRACT_BASE_URL,clientUrl,mapping);
+
+		domainUrl=String.format(Constants.COMPONENT_EXTRACT_BASE_URL,domainUrl,"content-extract");
 
 		// Execute GET request
-		JsonNode responseJson = httpUtilities.httpGetResponse(apiUrl, headers);
+		JsonNode responseJson = httpUtilities.httpGetResponse(domainUrl, headers);
 		if (responseJson == null) {
-			throw new RuntimeException("Failed to fetch component JSON from API: " + apiUrl);
+			throw new RuntimeException("Failed to fetch component JSON from API: " + domainUrl);
 		}
 
 		// Track activity
-		activityTracking.addActivity(userName, clientUrl, Constants.ACTIVITY_TYPE, clientName, Constants.COMPONENT);
+		activityTracking.addActivity(userEmail, domainUrl, Constants.ACTIVITY_TYPE, domainName, Constants.COMPONENT);
 
 		return responseJson;
 	}}

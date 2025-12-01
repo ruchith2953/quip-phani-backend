@@ -1,4 +1,4 @@
-package com.quip.coa.config;
+package com.quip.coa.dbConfig;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
@@ -13,4 +13,3 @@ public class HttpClientConfig {
         return HttpClients.createDefault();
     }
 }
-

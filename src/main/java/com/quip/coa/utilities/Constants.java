@@ -7,7 +7,7 @@ public class Constants {
     public static final int MANDATORY_FIELDS_COUNT=4;
 
     // mongo connection uri
-    public static final String MONGO_CONNECTION_URI = "mongodb://admin:Admin123@134.33.246.207:27017/?authSource=admin";
+    public static final String MONGO_CONNECTION_URI = "mongodb://admin:admin@34.194.175.59:27017/?authSource=admin";
 
     // component field names
     public static final String COMPONENT_PATH_ATTRIBUTE_KEY="componentPath|ComponentPath";
@@ -20,7 +20,6 @@ public class Constants {
 
     // component extract base url
     public static final String COMPONENT_EXTRACT_BASE_URL ="http://34.224.16.46:4502/bin/quip/v1/component-extract?siteUrl=%s&mapping=%s";
-
     // AEM urls to extract and send back data
     public static final String UPDATE_DATA_TO_AEM="http://34.224.16.46:4502/bin/quip/v1/component-update";
 

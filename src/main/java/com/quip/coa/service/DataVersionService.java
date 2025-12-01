@@ -1,20 +1,14 @@
 package com.quip.coa.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.config.MongoClientSingleton;
-import com.quip.coa.jsonexcel.TenantConfigJsonParserService;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
-import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -24,11 +18,6 @@ import java.util.Map;
 
 @Service
 public class DataVersionService {
-
-    @Autowired
-    private TenantConfigJsonParserService readjsonfile;
-
-    private static final ObjectMapper objectMapper=new ObjectMapper();
 
     public void updateVersionData(Document componentDocument,String clientName, String userName) {
         MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
@@ -90,9 +79,6 @@ public class DataVersionService {
             // remove document _id from document
             document.remove("_id");
 
-            // adding rest all fields using mapping file
-            filterDataWithMappings(clientName, document,type,innerData);
-
             // check if the type exists
             Map<String, List<Document>> typeMap = (Map<String, List<Document>>) combinedResponse.computeIfAbsent(type, k -> new LinkedHashMap<>());
 
@@ -100,52 +86,6 @@ public class DataVersionService {
             typeMap.computeIfAbsent(id, k -> new ArrayList<>()).add(innerData);
         }
         return combinedResponse;
-    }
-
-
-    public void filterDataWithMappings(String clientName, Document componentDocument, String type,Document innerData ){
-        Map<String, Map<String, Object>> components=getMapping(clientName,type);
-        Map<String, Object> componentProperties = readjsonfile.retrieveComponentProperties(components, componentDocument);
-        if (componentProperties.isEmpty()) {
-            // return app response
-            return;
-        }
-
-        // now using componentProperties will have to check mappings and add data
-        for (String key: componentProperties.keySet()){
-            String matchKey=getComponentDocumentKey(componentDocument,componentProperties.get(key).toString());
-
-            if (matchKey!=null){
-                innerData.put(key, componentDocument.get(matchKey));
-            }
-            else {
-                innerData.put(key, "Property is missing");
-            }
-        }
-    }
-
-    public Map<String, Map<String, Object>> getMapping(String clientName,String type){
-        // fetching tenantConfig from database
-        Document tenantConfigDoc = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig")
-                .find().first();
-
-        if (tenantConfigDoc!=null) {
-            JsonNode tenantConfigComponentsData = objectMapper.convertValue(tenantConfigDoc.get(type), JsonNode.class);
-            // consists mappings for all components
-            return objectMapper.convertValue(tenantConfigComponentsData, new TypeReference<Map<String, Map<String, Object>>>() {
-            });
-        }
-        return null;
-    }
-
-    private String getComponentDocumentKey(Document resultDocument, String key) {
-        for (String componentDocumentKey : resultDocument.keySet()) {
-            String aemKeyName=componentDocumentKey.contains("|")? componentDocumentKey.substring(0,componentDocumentKey.indexOf("|")): componentDocumentKey;
-            if (StringUtils.equalsIgnoreCase(aemKeyName.trim(),key)) {
-                return componentDocumentKey;
-            }
-        }
-        return null;
     }
 
     // revert

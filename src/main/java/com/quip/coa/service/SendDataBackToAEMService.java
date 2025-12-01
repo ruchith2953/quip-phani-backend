@@ -3,7 +3,7 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoDatabase;
-import com.quip.coa.config.MongoClientSingleton;
+import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -30,7 +30,7 @@ public class SendDataBackToAEMService {
     @Autowired
     private UpdateActivityTracking updateActivityTracking;
 
-    public JsonNode connectToAEM(JsonNode componentsData,String clientName,String domain,String userName){
+    public JsonNode connectToAEM(JsonNode componentsData,String domainName,String domainUrl,String userEmail){
         Map<String,String> response=new HashMap<>();
         try{
             String componentDataString=objectMapper.writeValueAsString(componentsData);
@@ -48,16 +48,13 @@ public class SendDataBackToAEMService {
                 JsonNode data=objectMapper.readTree(responseString);
 
                 String activityName="aem_update_success";
-                if (updateActivityTracking.updateActivity(userName,domain,activityName,clientName,Constants.COMPONENT)){
+                if (updateActivityTracking.updateActivity(userEmail,domainUrl,activityName,domainName,Constants.COMPONENT)){
                     //after sending data to aem delete it
-                    MongoDatabase mongoDatabase = MongoClientSingleton.getClient().getDatabase(clientName);
+                    MongoDatabase mongoDatabase = MongoClientSingleton.getClient().getDatabase(domainName);
 
                     String[] collections = {
-                            Constants.COMPONENT,
-                            Constants.INVALID_COMPONENT,
-                            Constants.AEMFORM_DOCUMENTS,
-                            Constants.MASTER_JSON,
-                            Constants.VERSION_COLLECTION
+                            "component_documents",
+                            "metadata"
                     };
 
                     for (String collectionName : collections) {
@@ -66,7 +63,7 @@ public class SendDataBackToAEMService {
                     return objectMapper.convertValue(data,JsonNode.class);
                 }
                 response.put("status","failed");
-                response.put("message","No activity found for user: "+userName);
+                response.put("message","No activity found for user: "+userEmail);
                 return objectMapper.convertValue(response, JsonNode.class);
             }
             //op stream bytes
