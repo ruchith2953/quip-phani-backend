@@ -53,8 +53,8 @@ public class SendDataBackToAEMService {
                     MongoDatabase mongoDatabase = MongoClientSingleton.getClient().getDatabase(domainName);
 
                     String[] collections = {
-                            "component_documents",
-                            "metadata"
+                            Constants.COMPONENTS_COLLECTION,
+                            Constants.METADATA_COLLECTION
                     };
 
                     for (String collectionName : collections) {

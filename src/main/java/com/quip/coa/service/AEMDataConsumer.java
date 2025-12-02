@@ -6,8 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-
 @Service
 public class AEMDataConsumer {
 
@@ -22,7 +20,7 @@ public class AEMDataConsumer {
 	public JsonNode processAEMData(String domainUrl, String userEmail, String domainName) throws JsonProcessingException {
 		JsonNode aemDataJson = componentExtractJson.componentExtractJson(userEmail, domainUrl,domainName);
 
-		int count = aemService.extractAndStore(aemDataJson,domainName);
+		aemService.extractAndStore(aemDataJson,domainName,userEmail);
 
 		return aemDataJson;
 	}
