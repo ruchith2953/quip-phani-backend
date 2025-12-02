@@ -60,25 +60,15 @@ public class GenericAemComponentProcessor {
         doc.identifier = identifier;
         doc.componentKeyRaw = rawKey;
 
-        Map<String, Object> clean = new LinkedHashMap<>();
+        doc.path=instanceNode.get("path|Path").asText();
+        doc.componentPath=instanceNode.get("componentPath|ComponentPath").asText();
+
         Map<String, Object> raw = new LinkedHashMap<>();
-        Map<String, String> mappings = new LinkedHashMap<>();
 
         // do recursive extraction
-        parseNodeRecursive(instanceNode, clean, raw, mappings);
+        parseNodeRecursive(instanceNode, raw);
 
-        doc.cleanProps = clean;
         doc.rawProps = raw;
-        doc.fieldMappings = mappings;
-
-        // extract special top-level clean fields
-        if (clean.containsKey("path")) {
-            doc.path = clean.get("path").toString();
-        }
-
-        if (clean.containsKey("componentPath")) {
-            doc.componentPath = clean.get("componentPath").toString();
-        }
 
         return doc;
     }
@@ -86,15 +76,12 @@ public class GenericAemComponentProcessor {
     // ========================================================================
     // RECURSIVE FUNCTION — handles unlimited nesting
     // ========================================================================
-    private void parseNodeRecursive(JsonNode node,
-                                    Map<String, Object> cleanOut,
-                                    Map<String, Object> rawOut,
-                                    Map<String, String> mappings) {
+    private void parseNodeRecursive(JsonNode node, Map<String, Object> rawOut) {
 
         Iterator<String> fieldNames = node.fieldNames();
 
         while (fieldNames.hasNext()) {
-            String rawKey = fieldNames.next();                 // e.g. "itemLabel|Label"
+            String rawKey = fieldNames.next();
             JsonNode value = node.get(rawKey);
 
             // cleanKey = left side of '|'
@@ -102,50 +89,39 @@ public class GenericAemComponentProcessor {
                     ? rawKey.substring(0, rawKey.indexOf("|"))
                     : rawKey;
 
-            // store mapping clean → raw
-            mappings.put(cleanKey, rawKey);
-
             // CASE 1: OBJECT
             if (value.isObject()) {
-                Map<String, Object> cleanChild = new LinkedHashMap<>();
                 Map<String, Object> rawChild = new LinkedHashMap<>();
 
-                parseNodeRecursive(value, cleanChild, rawChild, mappings);
+                parseNodeRecursive(value, rawChild);
 
-                cleanOut.put(cleanKey, cleanChild);
                 rawOut.put(rawKey, rawChild);
             }
 
             // CASE 2: ARRAY
             else if (value.isArray()) {
-                List<Object> cleanList = new ArrayList<>();
                 List<Object> rawList = new ArrayList<>();
 
                 for (JsonNode child : value) {
 
                     if (child.isObject()) {
-                        Map<String, Object> cleanChild = new LinkedHashMap<>();
                         Map<String, Object> rawChild = new LinkedHashMap<>();
 
-                        parseNodeRecursive(child, cleanChild, rawChild, mappings);
+                        parseNodeRecursive(child, rawChild);
 
-                        cleanList.add(cleanChild);
                         rawList.add(rawChild);
                     } else {
                         Object primitive = convert(child);
-                        cleanList.add(primitive);
                         rawList.add(primitive);
                     }
                 }
 
-                cleanOut.put(cleanKey, cleanList);
                 rawOut.put(rawKey, rawList);
             }
 
             // CASE 3: PRIMITIVE
             else {
                 Object primitive = convert(value);
-                cleanOut.put(cleanKey, primitive);
                 rawOut.put(rawKey, primitive);
             }
         }

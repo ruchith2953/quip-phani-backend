@@ -1,6 +1,6 @@
 package com.quip.coa.utilities;
 
-import com.mongodb.ObjectId;
+
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
@@ -12,6 +12,7 @@ import com.mongodb.client.result.UpdateResult;
 import com.quip.coa.dbConfig.MongoClientSingleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -110,11 +111,11 @@ public class MongoUtility {
     }
 
     public static Document getDocumentByPath(String path,String domainName) {
-        return MongoClientSingleton.getClient().getDatabase(domainName).getCollection("component_documents").find(new Document("componentPath",path)).first();
+        return MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.COMPONENTS_COLLECTION).find(new Document("componentPath",path)).first();
     }
 
     public static void updateDocument(String domainName, String path, Document updateDocument) {
-        MongoClientSingleton.getClient().getDatabase(domainName).getCollection("component_documents").updateOne(new Document("componentPath",path), new Document("$set", updateDocument));
+        MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.COMPONENTS_COLLECTION).updateOne(new Document("componentPath",path), new Document("$set", updateDocument));
     }
 
 }

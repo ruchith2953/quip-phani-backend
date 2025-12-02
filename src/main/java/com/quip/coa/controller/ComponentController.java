@@ -24,8 +24,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-import java.io.IOException;
 import java.util.*;
 
 @RestController
@@ -52,14 +50,14 @@ public class ComponentController {
 
     // create a domain
     @PostMapping("/createDomain")
-    public ResponseEntity<ObjectNode> createDomain(@RequestPart("domainUrl") String domainUrl) throws IOException {
+    public ResponseEntity<ObjectNode> createDomain(@RequestParam("domainUrl") String domainUrl) {
 
         Map<String, Object> response = new LinkedHashMap<>();
 
         if (domainUrl == null) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_FIELDS);
-            response.put(Constants.FIELD_ERROR_MESSAGE, "domainUrl field is mandatory.");
+            response.put(Constants.FIELD_MESSAGE, "domainUrl field is mandatory.");
             return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
         }
 
@@ -67,27 +65,25 @@ public class ComponentController {
         if (domainUrl.trim().isEmpty()) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_ERROR_CODE, Constants.EMPTY_VALUES);
-            response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. domainUrl cannot be empty.");
+            response.put(Constants.FIELD_MESSAGE, "Data Invalid. domainUrl cannot be empty.");
             return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
         }
 
         if (!(urlValidator.isValid(domainUrl))) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_ERROR_CODE, Constants.INVALID_DATA);
-            response.put(Constants.FIELD_ERROR_MESSAGE, "Data Invalid. Please enter valid domainUrl.");
+            response.put(Constants.FIELD_MESSAGE, "Data Invalid. Please enter valid domainUrl.");
             return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
         }
 
         String domainName = utility.getClientName(domainUrl);
-        Map<String, String> domainData = new HashMap<>();
-        domainData.put("domainName", domainName);
-        domainData.put("domainUrl", domainUrl);
 
-        String id = domainService.postDomain(domainData);
+        String id = domainService.postDomain(domainName,domainUrl);
+
         if (id == null) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_ERROR_CODE, Constants.CREATION_FAILED);
-            response.put(Constants.FIELD_ERROR_MESSAGE, "Domain creation is failed as domainUrl already exists. Try using another values.");
+            response.put(Constants.FIELD_MESSAGE, "Domain creation is failed as domainUrl already exists. Try using another values.");
             return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
         }
         response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
@@ -104,25 +100,60 @@ public class ComponentController {
         if ((domains.isEmpty())) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_ERROR_CODE, Constants.DATA_NOT_FOUND);
-            response.put(Constants.FIELD_ERROR_MESSAGE, "No domains available in the collection.");
+            response.put(Constants.FIELD_MESSAGE, "No domains available in the collection.");
             return new ResponseEntity<>(mapper.convertValue(response, ObjectNode.class), HttpStatus.OK);
         }
         return new ResponseEntity<>(mapper.convertValue(new Document("domains", domains), ObjectNode.class), HttpStatus.OK);
     }
 
+    @PutMapping("/updateDomain")
+    public ResponseEntity<Map<String, String>> updateDomainDetails(@RequestBody Map<String, String> request) {
+        Map<String, String> response = new HashMap<>();
+        String id = request.get("id");
+
+        if (id == null || id.trim().isEmpty()) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "Domain id is mandatory");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        if (!ObjectId.isValid(id)) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "Invalid domain id");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        String domainName = request.get("domainName");
+        String domainUrl = request.get("domainUrl");
+
+        if ((domainName == null || domainName.trim().isEmpty()) && (domainUrl == null || domainUrl.trim().isEmpty())) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE,"Either domainName or domainUrl must be provided");
+            return ResponseEntity.badRequest().body(response);
+        }
+        if (domainName != null) {
+            domainName = domainName.trim();
+        }
+        if (domainUrl != null) {
+            domainUrl = domainUrl.trim();
+        }
+        response = domainService.updateDomain(id, domainName, domainUrl);
+        return ResponseEntity.ok(response);
+    }
+
+
     @DeleteMapping("/deleteDomain/{id}")
     public ResponseEntity<Map<String, String>> deleteDomain(@PathVariable String id) {
-        log.info("id: {}", id);
         DeleteResult deleteResult = domainService.deleteDomain(id);
         if (deleteResult.getDeletedCount() > 0) {
             return ResponseEntity.ok(Map.of(
-                    "status", "success",
-                    "errorMessage", "Domain deleted successfully"
+                    Constants.FIELD_STATUS, Constants.STATUS_SUCCESS,
+                    Constants.FIELD_MESSAGE, "Domain deleted successfully"
             ));
         }
         return ResponseEntity.status(404).body(Map.of(
-                "status", "error",
-                "errorMessage", "Domain not found"
+                Constants.FIELD_STATUS, Constants.STATUS_FAILED,
+                Constants.FIELD_MESSAGE, "Domain not found"
         ));
     }
 
@@ -136,22 +167,18 @@ public class ComponentController {
         try {
             boolean initAem = (boolean) activityStatusMap.get("initAEM");
             if (!initAem) {
+                result.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
                 result.put(Constants.FIELD_MESSAGE, activityStatusMap.get(Constants.FIELD_MESSAGE).toString());
-                result.put("result", Collections.EMPTY_MAP);
                 return result;
             } else {
-                JsonNode rawAEMData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
+                aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
 
-                // adding user email to AEM meta data
-                Document metadata = mapper.convertValue(rawAEMData.get("metadata"), Document.class);
-                metadata.put("user_email", userEmail);
                 result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
+                result.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
             }
         } catch (Exception exception) {
             result.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             result.put(Constants.FIELD_MESSAGE, "Failed to ingest data: " + exception.getClass().getName());
-            result.put("result", Collections.emptyMap());
-            result.put(Constants.FIELD_RESPONSE, exception.getMessage());
             return result;
         }
         return result;
@@ -165,17 +192,16 @@ public class ComponentController {
         return service.getAll(domainPath, domainName);
     }
 
-    @PutMapping("/updateProps")
-    public void updateProps(@RequestBody Map<String, Object> body) {
+    @PutMapping("/updateComponent")
+    public void updateComponent(@RequestBody Map<String, Object> body) {
         String componentPath = body.get("componentPath").toString();
+        log.info("COmpo: {}", componentPath);
         String domainName=utility.getClientName(body.get("domainUrl").toString());
         Document document = MongoUtility.getDocumentByPath(componentPath,domainName);
 
-        document.put("cleanProps", body.get("cleanProps"));
         document.put("rawProps", body.get("rawProps"));
 
         MongoUtility.updateDocument(domainName, componentPath, document);
-
     }
 
     @GetMapping("/reviewChanges")
@@ -231,7 +257,7 @@ public class ComponentController {
 		// fetching for components
         // fetch metadata
         JsonNode componentsData= mapper.convertValue(service.reStructureComponentData(service.reconstruct(domainName), domainName), JsonNode.class);
-
+        log.info("{}", componentsData);
 		Map<String,Object> componentDataResponse=mapper.convertValue(sendDataBackToAEMService.connectToAEM(componentsData,domainName,domainUrl,userEmail), new TypeReference<Map<String, Object>>() {});
 
 		response.put(Constants.FIELD_RESPONSE, componentDataResponse);

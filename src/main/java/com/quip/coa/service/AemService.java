@@ -11,6 +11,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.model.ComponentDocument;
+import com.quip.coa.utilities.Constants;
 import org.bson.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,11 +42,11 @@ public class AemService {
     // -----------------------------
     // 1. Extract and save to Mongo
     // -----------------------------
-    public int extractAndStore(JsonNode root,String domainName) throws JsonProcessingException {
+    public void extractAndStore(JsonNode root, String domainName,String userEmail) throws JsonProcessingException {
 
         List<ComponentDocument> docs = processor.parseComponentsJson(root);
 
-        MongoCollection<Document> collection = getCollection(domainName,"component_documents");
+        MongoCollection<Document> collection = getCollection(domainName, Constants.COMPONENTS_COLLECTION);
 
         List<Document> mongoDocs = new ArrayList<>();
 
@@ -58,16 +59,17 @@ public class AemService {
 
         // create metadata collection
 
-        MongoCollection<Document> metaDataCollection = getCollection(domainName,"metadata");
+        MongoCollection<Document> metaDataCollection = getCollection(domainName,Constants.METADATA_COLLECTION);
         Document metaData=Document.parse(root.toString());
         metaData.put("components","");
+        Document metadataObject=metaData.get("metadata",Document.class);
+        metadataObject.put("user_email",userEmail);
         metaDataCollection.insertOne(metaData);
-        return docs.size();
     }
 
 
     public Document reStructureComponentData(ObjectNode componentData, String domainName){
-        Document metaDataDocument = getCollection(domainName,"metadata").find().projection(new Document("_id", 0)).first();
+        Document metaDataDocument = getCollection(domainName,Constants.METADATA_COLLECTION).find().projection(new Document("_id", 0)).first();
         if (metaDataDocument != null) {
             metaDataDocument.put("components", componentData);
         }
@@ -83,7 +85,7 @@ public class AemService {
     // -----------------------------
     public ObjectNode reconstruct(String domainName) throws JsonProcessingException {
 
-        MongoCollection<Document> collection = getCollection(domainName,"component_documents");
+        MongoCollection<Document> collection = getCollection(domainName,Constants.COMPONENTS_COLLECTION);
 
         List<ComponentDocument> docs = new ArrayList<>();
 
@@ -91,6 +93,8 @@ public class AemService {
             ComponentDocument d = mapper.readValue(dbDoc.toJson(), ComponentDocument.class);
             docs.add(d);
         }
+
+        log.info("COunt: {}", docs.size());
 
         return processor.reconstructComponents(docs);
     }
@@ -100,7 +104,7 @@ public class AemService {
     // -----------------------------
     public List<ComponentDocument> getAll(String pagePath,String domainName) throws JsonProcessingException {
 
-        MongoCollection<Document> collection = getCollection(domainName,"component_documents");
+        MongoCollection<Document> collection = getCollection(domainName,Constants.COMPONENTS_COLLECTION);
 
         List<ComponentDocument> docs = new ArrayList<>();
 
