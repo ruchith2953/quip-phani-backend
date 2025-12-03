@@ -31,7 +31,7 @@ public class ComponentExtractJson {
 		headers.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
 		headers.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
 
-		domainUrl=String.format(Constants.COMPONENT_EXTRACT_BASE_URL,domainUrl,Constants.COMPONENT_EXTRACT_MAPPING);
+		domainUrl=String.format(Constants.CONTENT_EXTRACT_BASE_URL,domainUrl,Constants.CONTENT_EXTRACT_MAPPING);
 
 		// Execute GET request
 		JsonNode responseJson = httpUtilities.httpGetResponse(domainUrl, headers);

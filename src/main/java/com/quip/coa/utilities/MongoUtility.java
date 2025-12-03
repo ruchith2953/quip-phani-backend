@@ -110,12 +110,14 @@ public class MongoUtility {
         return getCollection(dbName, collName).deleteMany(filter);
     }
 
-    public static Document getDocumentByPath(String path,String domainName) {
-        return MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.COMPONENTS_COLLECTION).find(new Document("componentPath",path)).first();
+    public Document getDocumentByPath(String path,String domainName) {
+        return getCollection(domainName, Constants.COMPONENTS_COLLECTION).find(new Document("componentPath",path)).first();
     }
 
-    public static void updateDocument(String domainName, String path, Document updateDocument) {
-        MongoClientSingleton.getClient().getDatabase(domainName).getCollection(Constants.COMPONENTS_COLLECTION).updateOne(new Document("componentPath",path), new Document("$set", updateDocument));
+    public boolean updateDocument(String domainName, String path, Document updateDocument) {
+        UpdateResult result = getCollection(domainName, Constants.COMPONENTS_COLLECTION).updateOne(new Document("componentPath", path),new Document("$set", updateDocument));
+        return result.getModifiedCount() > 0;
     }
+
 
 }

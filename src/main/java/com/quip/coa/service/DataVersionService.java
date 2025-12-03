@@ -1,14 +1,15 @@
 package com.quip.coa.service;
 
-import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.result.UpdateResult;
 import com.quip.coa.dbConfig.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
+import com.quip.coa.utilities.MongoUtility;
 import org.bson.Document;
 import org.bson.types.ObjectId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -19,111 +20,112 @@ import java.util.Map;
 @Service
 public class DataVersionService {
 
-    public void updateVersionData(Document componentDocument,String clientName, String userName) {
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
+     @Autowired
+     private MongoUtility mongoUtility;
 
-        String id=componentDocument.get("id").toString();
-        Document filterById=new Document("id",id);
-        String type=componentDocument.get("type").toString();
-        filterById.append("type",type);
+    /** Stores a new version snapshot for a component document.*/
+    public void updateVersionData(Document componentDocument, String clientName, String userName) {
 
-        // after filling db with all versions, to insert one more we override the existing docs
-        if (versionCollection.countDocuments(filterById)== Constants.NUMBER_OF_VERSIONS){
-            // delete the last version created
-            deleteVersion(versionCollection,filterById);
+        MongoCollection<Document> versionCollection =mongoUtility.getCollection(clientName,Constants.VERSION_COLLECTION);
+
+        String id = componentDocument.get("id").toString();
+        String type = componentDocument.get("type").toString();
+
+        Document filter = new Document("id", id).append("type", type);
+
+        // Remove the oldest version if exceeding limit
+        long count = versionCollection.countDocuments(filter);
+        if (count >= Constants.MAX_VERSIONS) {
+            deleteOldestVersion(versionCollection, filter);
         }
 
-        // adding the new document to versionCollection
-        componentDocument.put("user",userName);
-        componentDocument.put("timeStamp",System.currentTimeMillis());
-        versionCollection.insertOne(componentDocument);
+        // Snapshot of component
+        Document versionDoc = new Document(componentDocument);
+        versionDoc.put("user", userName);
+        versionDoc.put("timeStamp", System.currentTimeMillis());
+
+        versionCollection.insertOne(versionDoc);
     }
 
-    private void deleteVersion(MongoCollection<Document> versionCollection, Document filterById) {
+    /** Deletes the oldest version entry based on timestamp. */
+    private void deleteOldestVersion(MongoCollection<Document> versionCollection, Document filter) {
+        Document oldest =versionCollection.find(filter).sort(Sorts.ascending("timeStamp")).first();
 
-        // get all document's data sort in ascending order using id
-        FindIterable<Document> documentsById=versionCollection.find(filterById).sort(Sorts.ascending("timeStamp"));
-
-        //delete the first data
-        Document latestDocument=documentsById.first();
-        if (latestDocument==null){
-            return;
+        if (oldest != null) {
+            versionCollection.deleteOne(new Document("_id", oldest.getObjectId("_id")));
         }
-        versionCollection.deleteOne(latestDocument);
     }
 
-    public Map<String, Object> displayData(String clientName){
-        // fetch document from versionCollection and remove id
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
-        FindIterable<Document> componentDocuments= versionCollection.find();
+    /** Returns version history grouped by type and id. */
+    public Map<String, Object> displayData(String clientName) {
 
-        List<Document> documents = componentDocuments.into(new ArrayList<>());
-        Map<String, Object> combinedResponse = new LinkedHashMap<>();
+        MongoCollection<Document> versionCollection = mongoUtility.getCollection(clientName,Constants.VERSION_COLLECTION);
 
-        // iterate over doc and put doc id as key  and response document
-        for (Document document: documents){
-            String currentDocumentId=document.get("_id").toString();
-            String id=document.get("id").toString();
-            String type=document.get("type").toString();
-            String timeStamp=document.get("timeStamp").toString();
-            document.remove("id");
+        List<Document> versionDocs =versionCollection.find().into(new ArrayList<>());
 
-            // get mapping for the document and add to that
-            Document innerData = new Document();
+        Map<String, Object> response = new LinkedHashMap<>();
 
-            // adding few fields manually to documents
-            innerData.put("currentDocumentId",currentDocumentId);
-            innerData.put("documentId",id);
-            innerData.put("timeStamp",timeStamp);
+        for (Document version : versionDocs) {
+            String type = version.getString("type");
+            String id = version.getString("id");
+            String timeStamp = version.get("timeStamp").toString();
 
-            // remove document _id from document
-            document.remove("_id");
+            Map<String, List<Document>> typeGroup = (Map<String, List<Document>>) response.computeIfAbsent(type, k -> new LinkedHashMap<>());
 
-            // check if the type exists
-            Map<String, List<Document>> typeMap = (Map<String, List<Document>>) combinedResponse.computeIfAbsent(type, k -> new LinkedHashMap<>());
+            Document cleaned = new Document(version);
 
-            // if yes then take respective id related to it and add that doc the id
-            typeMap.computeIfAbsent(id, k -> new ArrayList<>()).add(innerData);
+            cleaned.put("currentDocumentId", cleaned.get("_id").toString());
+            cleaned.put("documentId", id);
+            cleaned.put("timeStamp", timeStamp);
+
+            cleaned.remove("_id");
+            cleaned.remove("id");
+            cleaned.remove("type");
+
+            typeGroup.computeIfAbsent(id, k -> new ArrayList<>()).add(cleaned);
         }
-        return combinedResponse;
+        return response;
     }
 
-    // revert
-    public Map<String,String> revertBack(Document filterById,String documentId, String clientName){
+    /** Reverts a component document to a previous version. */
+    public Map<String, String> revertBack(Document filterById, String documentId, String clientName) {
 
         Map<String, String> response = new LinkedHashMap<>();
 
-        // fetch existing doc from valid component
-        ObjectId objectId=new ObjectId(documentId);
-        // get xf data
-        MongoCollection<Document> componentCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component");
+        ObjectId objectId = new ObjectId(documentId);
 
-        // get versionCollection
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
+        MongoCollection<Document> componentCollection = mongoUtility.getCollection(clientName,Constants.COMPONENTS_COLLECTION);
 
-        // fetch document from versionCollection and exclude _id, userName,type and timeStamp
-        Document componentDocument= versionCollection.find(filterById).projection(Projections.exclude("_id","user","type","timeStamp")).first();
+        Document existing = componentCollection.find(new Document("_id", objectId)).first();
 
-        if (componentDocument==null){
-            response.put("status","failed");
-            response.put("message","no previous version available for component id: "+documentId);
+        if (existing == null) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "Component not found with id: " + documentId);
             return response;
         }
 
-        // update component document with _id
-        componentDocument.put("_id",objectId);
-        // remove id
-        componentDocument.remove("id");
+        MongoCollection<Document> versionCollection = mongoUtility.getCollection(clientName,Constants.VERSION_COLLECTION);
 
-        UpdateResult result=componentCollection.updateOne(new Document("_id",objectId),new Document("$set",componentDocument));
+        Document versionDoc =versionCollection.find(filterById).projection(Projections.exclude("_id", "user", "type", "timeStamp")).first();
 
-        if (result.getModifiedCount()>0){
-            response.put("status","success");
-            response.put("message","previous version updated for component id: "+documentId);
+        if (versionDoc == null) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "Previous version not found for id: " + documentId);
             return response;
         }
-        response.put("status","failed");
-        response.put("message","couldn't update previous version for component id: "+documentId);
+
+        versionDoc.put("_id", objectId);
+        versionDoc.remove("id");
+
+        UpdateResult update =componentCollection.updateOne(new Document("_id", objectId),new Document("$set", versionDoc));
+
+        if (update.getModifiedCount() > 0) {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
+            response.put(Constants.FIELD_MESSAGE, "Component restored to previous version.");
+        } else {
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "Failed to restore version.");
+        }
         return response;
     }
 }
