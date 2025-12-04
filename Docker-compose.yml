@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  mongodb:
+    image: mongo:6.0
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: Admin123
+    volumes:
+      - mongo_data:/data/db
+
+  quip-coa:
+    build: .
+    ports:
+      - "9091:9091"
+    depends_on:
+      - mongodb
+    environment:
+      SPRING_DATA_MONGODB_URI: "mongodb://admin:Admin123@mongodb:27017/coa?authSource=admin"
+
+volumes:
+  mongo_data:

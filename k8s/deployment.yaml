@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quip-coa-ms
+  namespace: quip-coa-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quip-coa-ms
+  template:
+    metadata:
+      labels:
+        app: quip-coa-ms
+    spec:
+      containers:
+        - name: quip-coa-ms
+          image: nextrowdevcr.azurecr.io/dev/quip-coa-ms:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9091
+
+          env:
+            # -----------------------------
+            # SERVER PORT (Optional, but okay)
+            # -----------------------------
+            - name: SERVER_PORT
+              value: "9091"
+
+            # -----------------------------
+            # MONGO CONNECTION (Required)
+            # -----------------------------
+            - name: SPRING_DATA_MONGODB_URI
+              value: "mongodb://admin:Admin123@134.33.246.207:27017/coa?authSource=admin"
+
+            # -----------------------------
+            # AEM CONFIGS
+            # -----------------------------
+            - name: AEM_PAGE_USERNAME
+              value: "quip-service-user"
+
+            - name: AEM_PAGE_PASSWORD
+              value: "quipServiceUser"
+
+            # You can set these if the code reads them:
+            - name: AEM_PAGE_URL
+              value: "https://example.com"
+
+            - name: AEM_DOMAIN_URL
+              value: "https://example-domain.com"
+
