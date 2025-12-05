@@ -2,8 +2,7 @@ package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.client.MongoDatabase;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.utilities.Constants;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -22,24 +21,27 @@ import java.util.HashMap;
 import java.util.Map;
 
 @Service
-public class SendDataBackToAEMService {
+public class SendDataToAEMV2 {
 
     public static final ObjectMapper objectMapper=new ObjectMapper();
     @Autowired
+    private ActivityTracking activityTracking;
+    @Autowired
     private Environment environment;
     @Autowired
-    private UpdateActivityTracking updateActivityTracking;
+    private UpdateActivityTrackingV2 updateActivityTrackingV2;
 
-    public JsonNode connectToAEM(JsonNode componentsData,String domainName,String domainUrl,String userEmail){
+    public JsonNode connectToAEM(JsonNode componentsData,String clientName,String domain,String userName){
         Map<String,String> response=new HashMap<>();
         try{
             String componentDataString=objectMapper.writeValueAsString(componentsData);
             CloseableHttpClient httpClient = HttpClients.createDefault();
             HttpPost postRequest = new HttpPost(Constants.UPDATE_DATA_TO_AEM);
+            postRequest.setHeader("Content-Type", "application/json");
             String credentials = environment.getProperty("AEM_PAGE_USERNAME")+ ":" + environment.getProperty("AEM_PAGE_PASSWORD");
             String encodedAuth = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
-            postRequest.setHeader(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
-            postRequest.setHeader(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
+            postRequest.setHeader("Authorization", "Basic " + encodedAuth);
+            postRequest.setHeader("Content-Type", "application/json");
             StringEntity entity = new StringEntity(componentDataString);
             postRequest.setEntity(entity);
 
@@ -48,22 +50,18 @@ public class SendDataBackToAEMService {
                 JsonNode data=objectMapper.readTree(responseString);
 
                 String activityName="aem_update_success";
-                if (updateActivityTracking.updateActivity(userEmail,domainUrl,activityName,domainName,Constants.COMPONENT)){
+                if (updateActivityTrackingV2.updateActivity(userName,domain,activityName,clientName,"component")){
                     //after sending data to aem delete it
-                    MongoDatabase mongoDatabase = MongoClientSingleton.getClient().getDatabase(domainName);
-
-                    String[] collections = {
-                            Constants.COMPONENTS_COLLECTION,
-                            Constants.METADATA_COLLECTION
-                    };
-
-                    for (String collectionName : collections) {
-                        mongoDatabase.getCollection(collectionName).deleteMany(new Document());
-                    }
+                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component").deleteMany(new Document());
+                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("invalid_component").deleteMany(new Document());
+                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("aemform_documents").deleteMany(new Document());
+                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("masterJson").deleteMany(new Document());
+                    // delete the versionCollection also
+                    MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection").deleteMany(new Document());
                     return objectMapper.convertValue(data,JsonNode.class);
                 }
                 response.put("status","failed");
-                response.put("message","No activity found for user: "+userEmail);
+                response.put("message","No activity found for user: "+userName);
                 return objectMapper.convertValue(response, JsonNode.class);
             }
             //op stream bytes

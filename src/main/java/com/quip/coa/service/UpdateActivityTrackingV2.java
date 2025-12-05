@@ -1,17 +1,19 @@
 package com.quip.coa.service;
 
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.dbhelper.MongoClientSingleton;
 import org.bson.Document;
 import org.springframework.stereotype.Service;
+
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 @Service
-public class UpdateActivityTracking {
+public class UpdateActivityTrackingV2 {
 
     public boolean updateActivity(String userName, String domain, String activityName, String clientName, String activityType) {
+    	//
         MongoCollection<Document> activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
         Document query = new Document();
         query.append("activityType", activityType);

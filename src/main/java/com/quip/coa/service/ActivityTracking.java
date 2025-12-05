@@ -3,11 +3,9 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.dbConfig.MongoClientSingleton;
+import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.model.Activity;
 import org.bson.Document;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -17,8 +15,9 @@ import java.util.HashMap;
 @Service
 public class ActivityTracking {
 	private static final String ACTIVITY_INFO_COLLECTION = "activityInfo";
-	private static final Logger log = LoggerFactory.getLogger(ActivityTracking.class);
 
+	//private MongoClient mongoClient;
+	//private MongoDatabase database;
 	private MongoCollection<Document> activityCollection;
 
 	public void addActivity(String userName, String domain, String activityName,String clientName, String activityType) {
@@ -29,7 +28,7 @@ public class ActivityTracking {
 
 		Activity activity = new Activity();
 		activity.setUserName(userName);
-		activity.setDomain(clientName);
+		activity.setDomain(domain);
 		activity.setActivityName(activityName);
 		activity.setCreatedDate(date);
 		activity.setUpdatedDate(date);
@@ -40,8 +39,8 @@ public class ActivityTracking {
 		activityCollection.insertOne(activityDoc);
 	}
 
-	public void updateActivity(String userName, String domainUrl, String activityName, String domainName, String activityType) throws JsonProcessingException {
-		activityCollection = MongoClientSingleton.getClient().getDatabase(domainName).getCollection("activityInfo");
+	public void updateActivity(String userName, String domain, String activityName, String clientName, String activityType) throws JsonProcessingException {
+		activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
 		Document query = new Document();
         query.append("activityType", activityType);
         query.append("userName", userName);
@@ -59,7 +58,7 @@ public class ActivityTracking {
 		} else {
 			Activity newActivity = new Activity();
 			newActivity.setUserName(userName);
-			newActivity.setDomain(domainName);
+			newActivity.setDomain(domain);
 			newActivity.setActivityName(activityName);
 			newActivity.setActivityType(activityType);
 			LocalDateTime currentDate = LocalDateTime.now();
@@ -75,23 +74,22 @@ public class ActivityTracking {
 		}
 	}
 
-	public HashMap<String, Object> initAemExtract(String userEmail, String domainUrl, String domainName) {
-		log.info("This is name: {}", domainName);
-		activityCollection = MongoClientSingleton.getClient().getDatabase(domainName).getCollection("activityInfo");
+	public HashMap<String, Object> initAemExtract(String userName, String domain, String clientName) {
+		activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
 		try {
 			HashMap<String, Object> result = new HashMap<String, Object>();
 			Document activity_query = new Document();
-			activity_query.put("domain", domainName);
+			activity_query.put("domain", domain);
 			activity_query.put("activityType", "component");
-			Document activityDoc = activityCollection.find(activity_query).sort(new Document("_id", -1)).projection(new Document("_id", 0)).first();
+			Document activityDoc = activityCollection.find(activity_query).sort(new Document("_id", -1))
+					.projection(new Document("_id", 0)).first();
 			ObjectMapper objectMapper = new ObjectMapper();
-			log.info("Act doc {}", activityCollection.find().first());
 			Activity activity = objectMapper.convertValue(activityDoc, Activity.class);
 			if (activity == null) {
 				result.put("initAEM", true);
 				result.put("message", "you can intiate AEM Data injestion");
 			} else {
-				if (activity.getUserName().equals(userEmail)) {
+				if (activity.getUserName().equals(userName)) {
 					if ("done".equals(activity.getActivityCycle())) {
 						result.put("initAEM", true);
 						result.put("message", "you can intiate AEM Data injestion");
