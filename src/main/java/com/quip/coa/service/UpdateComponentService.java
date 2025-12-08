@@ -3,10 +3,10 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
-import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.mongoUtility.MongoUtility;
+import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -24,42 +24,36 @@ public class UpdateComponentService {
     private Readjsonfile readjsonfile;
     @Autowired
     private DataVersionService dataVersionService;
+    @Autowired
+    private MongoUtility mongoUtility;
+   @Autowired
+    private ObjectMapper objectMapper;
 
-    public static final ObjectMapper objectMapper=new ObjectMapper();
-
-    public Map<String, String> updateComponent(String clientName, Map<String, String> document, String userName) throws Exception {
+    public Map<String, String> updateComponent(String clientName, Map<String, String> document, String userName){
         Map<String, String> response = new LinkedHashMap<>();
 
         // user restriction
-        Document query = new Document("_id", -1);
-        Document activity = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo").find().sort(query).first();
+        Document activity = mongoUtility.findFirstSorted(clientName, Constants.ACTIVITY_INFO_COLLECTION,new Document("_id", -1));
         userName=userName.contains("@")? userName.substring(0,userName.indexOf("@")): userName;
         if (activity==null || !Objects.equals(activity.get("userName"),userName)){
-            response.put("status", "failed");
-            response.put("message", "The domain '" + clientName + "' is owned by '" + activity.get("userName").toString() + "'. Kindly reach out to the domain owner for further assistance");
-            response.put("response", userName+": you do not have permission to update this domain");
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "The domain '" + clientName + "' is owned by '" + activity.get("userName").toString() + "'. Kindly reach out to the domain owner for further assistance");
+            response.put(Constants.RESPONSE_FAILED, userName+": you do not have permission to update this domain");
             return response;
         }
 
-        Document toBeUpdated=new Document();
-
-        Document tenantConfigDoc = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig")
-                .find().first();
-
+        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
         if (tenantConfigDoc==null){
-            response.put("status", "failed");
-            response.put("message", "No Master Mapping Data found for client: "+clientName);
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "No Master Mapping Data found for client: "+clientName);
             return response;
         }
-        MongoCollection<Document> clientCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component");
 
         ObjectId id = new ObjectId(document.get("id"));
         Document updateDocument = new Document(document);
         updateDocument.remove("id");
 
-        Document filterById = new Document("_id", id);
-
-        Document componentDocument=clientCollection.find(filterById).projection(Projections.exclude("_id")).first();
+        Document componentDocument= mongoUtility.getDocByQueryAndProjection(clientName,Constants.COMPONENT_COLLECTION,new Document("_id", id),Projections.exclude("_id"));
 
         if (componentDocument!=null){
             String componentName=componentDocument.get("componentName").toString();
@@ -74,14 +68,15 @@ public class UpdateComponentService {
             JsonNode mappingData=objectMapper.convertValue(componentPropertiesList,JsonNode.class);
 
             if(mappingData==null){
-                response.put("status", "failed");
-                response.put("message", "No Mapping Values found for component: " + componentName);
+                response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+                response.put(Constants.FIELD_MESSAGE, "No Mapping Values found for component: " + componentName);
                 return response;
             }
 
+            Document toBeUpdated=new Document();
+
             for (String key: updateDocument.keySet()){
                 String mappingValue=mappingData.get(key).asText();
-
                 String getComponentKey=getComponentDocumentKey(componentDocument,mappingValue);
                 if (getComponentKey!=null){
                     toBeUpdated.put(getComponentKey,updateDocument.get(key));
@@ -94,19 +89,18 @@ public class UpdateComponentService {
             componentDocument.put("id",document.get("id"));
             componentDocument.put("type","components");
             dataVersionService.updateVersionData(componentDocument,clientName,userName);
-
-            long result = clientCollection.updateOne(filterById,updateDoc).getModifiedCount();
+            long result = mongoUtility.updateOne(clientName,Constants.COMPONENT_COLLECTION,new Document("_id", id),updateDoc).getModifiedCount();
             if (result > 0) {
-                response.put("status", "success");
-                response.put("message", "Document updated successfully with the id: " + id);
+                response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
+                response.put(Constants.FIELD_MESSAGE, "Document updated successfully with the id: " + id);
                 return response;
             }
-            response.put("status", "failed");
-            response.put("message", "No field got updated");
+            response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE, "No field got updated");
             return response;
         }
-        response.put("status", "failed");
-        response.put("message", "No document matched with the id: " + id);
+        response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+        response.put(Constants.FIELD_MESSAGE, "No document matched with the id: " + id);
         return response;
     }
 

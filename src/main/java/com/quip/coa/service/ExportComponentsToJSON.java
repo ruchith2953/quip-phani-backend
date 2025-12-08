@@ -3,41 +3,33 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.mongodb.client.FindIterable;
 import com.quip.coa.helper.Utility;
 import com.quip.coa.jsonexcel.Readjsonfile;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
 import java.util.*;
 
 @Service
 public class ExportComponentsToJSON {
 
-    private static final Logger log = LoggerFactory.getLogger(ExportComponentsToJSON.class);
     @Autowired
     private Utility utility;
     @Autowired
     private Readjsonfile readjsonfile;
+    @Autowired
+    private MongoUtility mongoUtility;
+    @Autowired
+    private ObjectMapper mapper;
 
-    private final MongoUtility mongoUtility=new MongoUtility();
-
-    private static final ObjectMapper mapper = new ObjectMapper();
-
-    public Map<String, Object> exportToJSON(String userName, String domainUrl, String domainPath) throws Exception {
-
+    public Map<String, Object> exportToJSON(String domainUrl, String domainPath) throws Exception {
         // extract clientName from URL
         String clientName = utility.getClientName(domainUrl);
-
-        Document tenantConfigDoc = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig")
-                .find().first();
+        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
 
         Map<String, Object> outerData = new LinkedHashMap<>();
         List<Map<String, Object>> innerList = new ArrayList<>();
@@ -61,7 +53,8 @@ public class ExportComponentsToJSON {
             Map<String, Map<String, Object>> components = mapper.convertValue(tenantConfigComponentsData, new TypeReference<Map<String, Map<String, Object>>>() {
             });
 
-            for (Document componentDocument : MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component").find(new Document("path|Path",domainPath))) {
+            FindIterable<Document> documents = mongoUtility.getMatchedDocsByQuery(clientName,Constants.COMPONENT_COLLECTION,new Document("path|Path",domainPath));
+            for (Document componentDocument :documents) {
                 String documentId = componentDocument.getObjectId("_id").toHexString();
 
                 if (componentDocument.get("componentName") != null) {

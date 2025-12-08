@@ -2,11 +2,10 @@ package com.quip.coa.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.mongodb.client.MongoCursor;
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.InsertOneResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
-import com.quip.coa.helper.Utility;
 import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -18,25 +17,22 @@ import java.util.*;
 
 @Service
 public class AEMDataConsumer {
-	@Autowired
-	private Utility utility;
+
 	@Autowired
 	private ComponentExtractJson componentExtractJson;
 	@Autowired
-	private ActivityTracking activityTracking;
-	@Autowired
 	private Readjsonfile readjsonfile;
+    @Autowired
+	private MongoUtility mongoUtility;
 
 	private ObjectMapper mapper = new ObjectMapper();
 
-	public Map<String, Object> processAEMData(String clientUrl, String userName, String clientName) throws Exception {
+	public Map<String, Object> processAEMData(String clientUrl, String userEmail, String clientName) throws Exception {
 		Map<String, Object> aemData = null;
 		Set<String> interactionIdsSet = new LinkedHashSet<>();
 		Set<String> modalReferencePaths = new HashSet<>();
-		JsonNode aemDataJson = componentExtractJson.componentExtractJson(userName, clientUrl,clientName);
-		//Path filePath = Path.of("C:\\Users\\VishnubharathBandari\\Documents\\QUIP_2.O\\COmponent Extract Quilipta.json");
-		//String fileContent = Files.readString(filePath);
-		//JsonNode aemDataJson = mapper.convertValue(fileContent, JsonNode.class);
+		JsonNode aemDataJson = componentExtractJson.componentExtractJson(userEmail, clientUrl,clientName);
+
 		aemData = mapper.convertValue(aemDataJson, Map.class);
 		Map<String, Object> componentsDataCopy = new HashMap<>();
 		Map<String, Object> componentsData = (Map<String, Object>) aemData.get("components");
@@ -49,54 +45,27 @@ public class AEMDataConsumer {
 		}
 		aemData.put("components", componentsDataCopy);
 		processModalComponents(modalReferencePaths,clientName);
-		// System.out.println(modalReferencePaths);
-		return aemData;
-	}
-
-	public Map<String, Object> testProcessAEMData(JsonNode aemDataJson,String clientName) throws Exception {
-		Map<String, Object> aemData = null;
-		Set<String> interactionIdsSet = new LinkedHashSet<>();
-		Set<String> modalReferencePaths = new HashSet<>();
-		//JsonNode aemDataJson = componentExtractJson.componentExtractJson(userName, clientUrl);
-		aemData = mapper.convertValue(aemDataJson, Map.class);
-		Map<String, Object> componentsDataCopy = new HashMap<>();
-		Map<String, Object> componentsData = (Map<String, Object>) aemData.get("components");
-		for (Map.Entry<String, Object> compEntry : componentsData.entrySet()) {
-			String compKey = compEntry.getKey();
-			List<Map<String, Object>> compData = (List<Map<String, Object>>) compEntry.getValue();
-			List<String> compDataCopy = processComponent(compKey, compData, interactionIdsSet, "https://psoriasis.p.cwcm-admp.com",
-					modalReferencePaths, null,clientName);
-			componentsDataCopy.put(compKey, compDataCopy);
-		}
-		aemData.put("components", componentsDataCopy);
-		processModalComponents(modalReferencePaths,clientName);
-		// System.out.println(modalReferencePaths);
 		return aemData;
 	}
 
 	private void processModalComponents(Set<String> modalReferencePaths, String clientName) {
-		// Document queryDoc = new Document();
-		// queryDoc.put("_id", new ObjectId("6593f51d1e9d28611c3f9e38"));
-		MongoCursor<Document> cursor = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component")
-				.find().iterator();
-		while (cursor.hasNext()) {
-			Document doc = cursor.next();
-			String referencePath = null != doc.get("path|Path") ? doc.get("path|Path").toString() : null;
-			if (modalReferencePaths.contains(referencePath)) {
-				Document updateFields = new Document();
-				updateFields.put("componentName", (doc.get("componentName").toString() + " - Modal"));
+		MongoCollection<Document> componentCollection= mongoUtility.getCollection(clientName,Constants.COMPONENT_COLLECTION);
+        for (Document doc : componentCollection.find()) {
+            String referencePath = null != doc.get("path|Path") ? doc.get("path|Path").toString() : null;
+            if (modalReferencePaths.contains(referencePath)) {
+                Document updateFields = new Document();
+                updateFields.put("componentName", (doc.get("componentName").toString() + " - Modal"));
 
-				Document updateQuery = new Document();
-				updateQuery.put("$set", updateFields);
+                Document updateQuery = new Document();
+                updateQuery.put("$set", updateFields);
 
-				String id = doc.getObjectId("_id").toString();
-				Document searchQuery = new Document();
-				searchQuery.put("_id", new ObjectId(id));
+                String id = doc.getObjectId("_id").toString();
+                Document searchQuery = new Document();
+                searchQuery.put("_id", new ObjectId(id));
 
-				MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component").updateOne(searchQuery,
-						updateQuery);
-			}
-		}
+                componentCollection.updateOne(searchQuery, updateQuery);
+            }
+        }
 	}
 
 	private List<String> processComponent(String compKey, List<Map<String, Object>> compData,
@@ -142,9 +111,8 @@ public class AEMDataConsumer {
 			}
 			comp = addRecordType(comp,clientName);
 			Document doc = mapper.convertValue(comp, Document.class);
-			InsertOneResult result = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component")
-						.insertOne(doc);
-				compDataCopy.add(result.getInsertedId().asObjectId().getValue().toString());
+			InsertOneResult result = mongoUtility.getCollection(clientName,Constants.COMPONENT_COLLECTION).insertOne(doc);
+			compDataCopy.add(result.getInsertedId().asObjectId().getValue().toString());
 			counter++;
 		}
 		return compDataCopy;
@@ -152,14 +120,12 @@ public class AEMDataConsumer {
 
 	private Map<String, Object> addRecordType(Map<String, Object> comp, String clientName) throws Exception {
 		String recordType = "Interactive";
-		Document document = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig").find()
-				.first();
+		Document document = mongoUtility.getCollection(clientName,Constants.TENANT_CONFIG_COLLECTION).find().first();
 		Map<String, Object> docMap = mapper.convertValue(document, Map.class);
 		Map<String, String> columnsMap = docMap.get("columnsMap") != null
 				? (Map<String, String>) docMap.get("columnsMap")
 				: Collections.EMPTY_MAP;
 		Map<String, Map<String, Object>> components = (Map<String, Map<String, Object>>) docMap.get("components");
-		Set<String> columnsKey = new LinkedHashSet<>(columnsMap.keySet());
 		Map<String, Object> componentPropertiesList = readjsonfile.retrieveComponentProperties(components,
 				mapper.convertValue(comp, Document.class));
 
@@ -179,8 +145,7 @@ public class AEMDataConsumer {
 
 	public List<String> getCompChildList(String compName, String clientName) {
 		List<String> compChildList = null;
-		Document document = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig").find()
-				.first();
+		Document document = mongoUtility.getCollection(clientName,Constants.TENANT_CONFIG_COLLECTION).find().first();
 		Map<String, Object> docMap = mapper.convertValue(document, Map.class);
 		Map<String, Object> components = null != docMap.get("components")
 				? (Map<String, Object>) docMap.get("components")
@@ -193,59 +158,10 @@ public class AEMDataConsumer {
 		return compChildList;
 	}
 
-	private boolean obsolete_validateInteractionId(Map<String, Object> comp, Set<String> interactionIdsSet) {
-		boolean validInteraction = true;
-		String interactionId = getInteractionIdKey(comp);
-		if (interactionId != null) {
-			String interactionIdVal = comp.get(interactionId).toString();
-			if (StringUtils.isEmpty(interactionIdVal) || interactionIdsSet.contains(interactionIdVal)) {
-				validInteraction = false;
-			}
-		} else {
-			validInteraction = false;
-		}
-		return validInteraction;
-	}
-
-	private String getInteractionIdKey(Map<String, Object> comp) {
-		Set<String> compKeySet = comp.keySet();
-		for (String key : compKeySet) {
-			if (StringUtils.containsIgnoreCase(key, "interactionid")) {
-				return key;
-			}
-		}
-		return null;
-	}
-
-	private HashMap<String, Object> validateInteractionId(Map<String, Object> comp, Set<String> interactionIdsSet) {
-		HashMap<String, Object> result = new HashMap<String, Object>();
-		result.put("validInteraction", true);
-		result.put("message", "valid interaction id");
-		String interactionId = getInteractionIdKey(comp);
-		if (interactionId != null) {
-			String interactionIdVal = comp.get(interactionId).toString();
-			if (StringUtils.isEmpty(interactionIdVal) || interactionIdsSet.contains(interactionIdVal)) {
-				result.put("validInteraction", false);
-				result.put("message", "interaction id is either empty or duplicated");
-				if (interactionIdsSet.contains(interactionIdVal)) {
-					result.put("message", "duplicate_interaction_id");
-				}
-				return result;
-			}
-			interactionIdsSet.add(interactionIdVal);
-			return result;
-		} else {
-			result.put("validInteraction", false);
-			result.put("message", "interaction id is null");
-			return result;
-		}
-	}
-
 	private String getResultdocKey(Document resultDocument, String key) {
 		String matchKey = null;
 		if (null != key && StringUtils.isNotEmpty(key)) {
 			for (String resultdocKey : resultDocument.keySet()) {
-				// if(resultdocKey.contains(key)) {
 				if (StringUtils.containsIgnoreCase(resultdocKey, key)) {
 					matchKey = resultdocKey;
 					break;

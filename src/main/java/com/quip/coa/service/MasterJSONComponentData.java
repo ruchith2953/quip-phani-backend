@@ -5,10 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
-import com.quip.coa.dbhelper.MongoClientSingleton;
-import com.quip.coa.helper.FetchCompPropFromTenantConfig;
-import com.quip.coa.helper.Utility;
-import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.mongoUtility.MongoUtility;
+import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -18,36 +16,29 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 
 @Service
-public class MasterJSONComponentDataV2 {
+public class MasterJSONComponentData {
 
     @Autowired
     private AEMDataConsumer aemDataConsumer;
     @Autowired
-    private Utility utility;
-    @Autowired
-    private FetchCompPropFromTenantConfig fetchCompPropFromTenantConfig;
-    @Autowired
-    private Readjsonfile readjsonfile;
+    private MongoUtility mongoUtility;
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
     // modified child flag component
     private boolean flag=false;
 
     public Map<String,Object> convertMasterJsonData(String clientName) {
-        Document masterJsonData = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("masterJson")
-                .find().first();
+        Document masterJsonData = mongoUtility.findOne(clientName, Constants.MASTER_JSON_COLLECTION,new Document());
 
         if (masterJsonData==null){
             Map<String,Object> masterJsonComponentsData=new HashMap<>();
-            masterJsonComponentsData.put("status","failed");
-            masterJsonComponentsData.put("message","Data is not ingested. Please ingest the data.");
+            masterJsonComponentsData.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+            masterJsonComponentsData.put(Constants.FIELD_MESSAGE,"Data is not ingested. Please ingest the data.");
             return masterJsonComponentsData;
         }
         masterJsonData.remove("_id");
 
-        MongoCollection<Document> componentsCollectionData = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component");
-
-        MongoCollection<Document> invalidComponentsCollectionData = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("invalid_component");
+        MongoCollection<Document> componentCollectionData =mongoUtility.getCollection(clientName,Constants.COMPONENT_COLLECTION);
 
         Map<String, List<Document>> componentsData = new HashMap<>();
 
@@ -59,41 +50,15 @@ public class MasterJSONComponentDataV2 {
 
             for (String objectId : componentData) {
                 // query to fetch data from database
-                Document component = componentsCollectionData.find(new Document("_id", new ObjectId(objectId))).projection(Projections.exclude("_id", "recordType")).first();
-
+                Document component = componentCollectionData.find(new Document("_id", new ObjectId(objectId))).projection(Projections.exclude("_id", "recordType")).first();
                 if (component != null) {
-                    List<Document> processedComponentData = processComponent(component, clientName, componentsCollectionData);
+                    List<Document> processedComponentData = processComponent(component, clientName, componentCollectionData);
                     componentsList.addAll(processedComponentData);
-                } else {
-                    Document invalidComponent = invalidComponentsCollectionData.find(new Document("_id", new ObjectId(objectId))).projection(Projections.exclude("_id", "recordType")).first();
-                    if (invalidComponent != null) {
-                        List<Document> processedComponentData = processComponent(invalidComponent, clientName, componentsCollectionData);
-                        componentsList.addAll(processedComponentData);
-                    }
                 }
             }
             componentsData.put(componentKey, componentsList);
         }
 
-        MongoCollection<Document> aemformCollectionData = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("aemform_documents");
-        Map<String, List<Document>> formsData = new HashMap<>();
-        Map<String, Object> forms = objectMapper.convertValue(masterJsonData.get("forms"), new TypeReference<Map<String, Object>>() {
-        });
-
-        List<Document> formList = new ArrayList<>();
-        ArrayList<String> formIDList = objectMapper.convertValue(forms.get("aemform"), new TypeReference<ArrayList<String>>() {
-        });
-
-        for (String objectId : formIDList) {
-            // query to fetch data from database
-            Document formDoc = aemformCollectionData.find(new Document("_id", new ObjectId(objectId))).projection(Projections.exclude("_id")).first();
-            if (formDoc != null) {
-                formList.addAll(processComponent(formDoc, clientName, aemformCollectionData));// processing the forms document
-            }
-        }
-        formsData.put("aemform", formList);
-
-        masterJsonData.put("forms", formsData);
         masterJsonData.put("components", componentsData);
 
         // if in case want to store the response to database for backup
@@ -188,7 +153,6 @@ public class MasterJSONComponentDataV2 {
         String compKeyAemName = compName.contains("|")? compName.substring(0, compName.indexOf("|")):compName;
         return  aemDataConsumer.getCompChildList(compKeyAemName,clientName);
     }
-
 
     public String getResultDocKey(Document resultDocument, String key) {
         String matchKey = null;

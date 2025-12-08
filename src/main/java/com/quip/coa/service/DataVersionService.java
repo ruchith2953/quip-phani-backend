@@ -8,8 +8,8 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.bson.Document;
@@ -27,11 +27,13 @@ public class DataVersionService {
 
     @Autowired
     private Readjsonfile readjsonfile;
+    @Autowired
+    private MongoUtility mongoUtility;
 
     private static final ObjectMapper objectMapper=new ObjectMapper();
 
     public void updateVersionData(Document componentDocument,String clientName, String userName) {
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
+        MongoCollection<Document> versionCollection =mongoUtility.getCollection(clientName,Constants.VERSION_COLLECTION);
 
         String id=componentDocument.get("id").toString();
         Document filterById=new Document("id",id);
@@ -43,7 +45,6 @@ public class DataVersionService {
             // delete the last version created
             deleteVersion(versionCollection,filterById);
         }
-        //System.out.println("versionCount: "+ versionCount);
 
         // adding the new document to versionCollection
         componentDocument.put("user",userName);
@@ -52,24 +53,18 @@ public class DataVersionService {
     }
 
     private void deleteVersion(MongoCollection<Document> versionCollection, Document filterById) {
-
         // get all document's data sort in ascending order using id
         FindIterable<Document> documentsById=versionCollection.find(filterById).sort(Sorts.ascending("timeStamp"));
 
         //delete the first data
         Document latestDocument=documentsById.first();
-        if (latestDocument==null){
-            return;
-        }
+        if (latestDocument==null) return;
         versionCollection.deleteOne(latestDocument);
     }
 
     public Map<String, Object> displayData(String domainName){
         // fetch document from versionCollection and remove id
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(domainName).getCollection("versionCollection");
-        FindIterable<Document> componentDocuments= versionCollection.find();
-
-        List<Document> documents = componentDocuments.into(new ArrayList<>());
+        List<Document> documents = mongoUtility.findAll(domainName,Constants.VERSION_COLLECTION);
         Map<String, Object> combinedResponse = new LinkedHashMap<>();
 
         // iterate over doc and put doc id as key  and response document
@@ -124,8 +119,7 @@ public class DataVersionService {
 
     public Map<String, Map<String, Object>> getMapping(String clientName,String type){
         // fetching tenantConfig from database
-        Document tenantConfigDoc = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("tenantConfig")
-                .find().first();
+        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
 
         if (tenantConfigDoc!=null) {
             JsonNode tenantConfigComponentsData = objectMapper.convertValue(tenantConfigDoc.get(type), JsonNode.class);
@@ -153,23 +147,15 @@ public class DataVersionService {
 
         // fetch existing doc from valid component
         ObjectId objectId=new ObjectId(documentId);
-        // get xf data
-        MongoCollection<Document> componentCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("component");
-        Document existingDocument=componentCollection.find(new Document("_id",objectId)).first();
-
-        if (existingDocument==null){
-            return revertBackForm(filterById,documentId,clientName);
-        }
-
         // get versionCollection
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
+        MongoCollection<Document> versionCollection = mongoUtility.getCollection(clientName,Constants.VERSION_COLLECTION);
 
         // fetch document from versionCollection and exclude _id, userName,type and timeStamp
         Document componentDocument= versionCollection.find(filterById).projection(Projections.exclude("_id","user","type","timeStamp")).first();
 
         if (componentDocument==null){
-            response.put("status","failed");
-            response.put("message","no previous version available for component id: "+documentId);
+            response.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
+            response.put(Constants.FIELD_MESSAGE,"no previous version available for component id: "+documentId);
             return response;
         }
 
@@ -177,106 +163,15 @@ public class DataVersionService {
         componentDocument.put("_id",objectId);
         // remove id
         componentDocument.remove("id");
-
-        UpdateResult result=componentCollection.updateOne(new Document("_id",objectId),new Document("$set",componentDocument));
-
-        if (result.getModifiedCount()>0){
-            response.put("status","success");
-            response.put("message","previous version updated for component id: "+documentId);
-            return response;
-        }
-        response.put("status","failed");
-        response.put("message","couldn't update previous version for component id: "+documentId);
-        return response;
-    }
-
-    // revert Back Form data
-    public Map<String,String> revertBackForm(Document filterById,String documentId, String clientName){
-        Map<String, String> response = new LinkedHashMap<>();
-
-        // fetch existing doc from aemform_documents collection
-        ObjectId objectId=new ObjectId(documentId);
-        // get form data
-        MongoCollection<Document> formCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("aemform_documents");
-        Document existingDocument=formCollection.find(new Document("_id",objectId)).first();
-
-        if (existingDocument==null){
-            response.put("status","failed");
-            response.put("message","no form data found with id: "+documentId);
-            return response;
-        }
-        // get versionCollection
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
-
-        // fetch document from versionCollection and exclude _id, userName,type and timeStamp
-        Document formDocument= versionCollection.find(filterById).projection(Projections.exclude("_id","user","type","timeStamp")).first();
-
-        if (formDocument==null){
-            response.put("status","failed");
-            response.put("message","no previous version available for from data id: "+documentId);
-            return response;
-        }
-
-        // update form data document with _id
-        formDocument.put("_id",objectId);
-        // remove id
-        formDocument.remove("id");
-
-        UpdateResult result=formCollection.updateOne(new Document("_id",objectId),new Document("$set",formDocument));
+        UpdateResult result=mongoUtility.updateOne(clientName,Constants.COMPONENT_COLLECTION,new Document("_id",objectId),new Document("$set",componentDocument));
 
         if (result.getModifiedCount()>0){
-            response.put("status","success");
-            response.put("message","previous version updated for form data id: "+documentId);
+            response.put(Constants.FIELD_STATUS,Constants.STATUS_SUCCESS);
+            response.put(Constants.FIELD_MESSAGE,"previous version updated for component id: "+documentId);
             return response;
         }
-        response.put("status","failed");
-        response.put("message","couldn't update previous version for form data id: "+documentId);
-        return response;
-    }
-
-    // revert back xf data
-    public Map<String,String> revertBackXf(Document filterById,String documentId, String clientName){
-
-        Map<String, String> response = new LinkedHashMap<>();
-
-        // fetch existing doc from valid component
-        ObjectId objectId=new ObjectId(documentId);
-        // get xf data
-        MongoCollection<Document> xfCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("xf_component");
-        Document existingDocument=xfCollection.find(new Document("_id",objectId)).first();
-
-        if (existingDocument==null){
-            response.put("status","failed");
-            response.put("message","no component found with id: "+documentId);
-            return response;
-        }
-
-        // get versionCollection
-        MongoCollection<Document> versionCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("versionCollection");
-
-        // fetch document from versionCollection and exclude _id, userName,type and timeStamp
-        Document componentDocument= versionCollection.find(filterById).projection(Projections.exclude("_id","user","type","timeStamp")).first();
-
-        if (componentDocument==null){
-            response.put("status","failed");
-            response.put("message","no previous version available for component id: "+documentId);
-            return response;
-        }
-
-        // update component document with _id
-        componentDocument.put("_id",objectId);
-        // remove id
-        componentDocument.remove("id");
-
-        UpdateResult result=xfCollection.updateOne(new Document("_id",objectId),new Document("$set",componentDocument));
-
-        if (result.getModifiedCount()>0){
-            response.put("status","success");
-            response.put("message","previous version updated for component id: "+documentId);
-            return response;
-        }
-        response.put("status","failed");
-        response.put("message","couldn't update previous version for component id: "+documentId);
+        response.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
+        response.put(Constants.FIELD_MESSAGE,"couldn't update previous version for component id: "+documentId);
         return response;
     }
 }

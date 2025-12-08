@@ -4,8 +4,14 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.Filters;
+import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.InsertOneResult;
+import com.mongodb.client.result.UpdateResult;
 import com.quip.coa.dbhelper.MongoClientSingleton;
 import org.bson.Document;
+import org.bson.conversions.Bson;
+import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -30,8 +36,13 @@ public class MongoUtility {
     }
 
     // Insert a single document
-    public void insertDocument(Document document, String databaseName, String collectionName) {
+    public void insertDocument(String databaseName, String collectionName,Document document) {
         getCollection(databaseName, collectionName).insertOne(document);
+    }
+
+    // Insert a single document
+    public InsertOneResult insertOneDocument(String databaseName, String collectionName, Document document) {
+       return getCollection(databaseName, collectionName).insertOne(document);
     }
 
     // Fetch all documents from the collection
@@ -60,7 +71,7 @@ public class MongoUtility {
     }
 
     // Fetch document from the collection based on query & projection
-    public Document getDocByQueryAndProjection(String databaseName, String collectionName, Document query, Document projection) {
+    public Document getDocByQueryAndProjection(String databaseName, String collectionName, Document query, Bson projection) {
         return getMatchedDocsByQuery(databaseName, collectionName, query).projection(projection).first();
     }
 
@@ -100,6 +111,59 @@ public class MongoUtility {
         }
 
         return documentList;
+    }
+
+    /** FindAll with projection */
+    public List<Document> findAll(String dbName, String collName) {
+        return getCollection(dbName, collName).find().into(new ArrayList<>());
+    }
+
+    /** FindAll with projection */
+    public List<Document> findAll(String dbName, String collName, Bson projection) {
+        var iterable = getCollection(dbName, collName).find();
+        if (projection != null) iterable = iterable.projection(projection);
+        return iterable.into(new ArrayList<>());
+    }
+
+    /** Delete one document */
+    public DeleteResult deleteOne(String dbName, String collName, Bson filter) {
+        return getCollection(dbName, collName).deleteOne(filter);
+    }
+
+    /** Delete many documents */
+    public DeleteResult deleteMany(String dbName, String collName, Bson filter) {
+        return getCollection(dbName, collName).deleteMany(filter);
+    }
+
+    /** Find one document (returns null if not found) */
+    public Document findOne(String dbName, String collName, Bson filter) {
+        return getCollection(dbName, collName).find(filter).first();
+    }
+
+    /** Find one document (returns null if not found) */
+    public Document findFirst(String dbName, String collName) {
+        return getCollection(dbName, collName).find().first();
+    }
+    /** Find one document by _id (String or ObjectId) */
+    public Document findById(String dbName, String collName, String id) {
+        if (ObjectId.isValid(id)) {
+            return findOne(dbName, collName, Filters.eq("_id", new ObjectId(id)));
+        }
+        return findOne(dbName, collName, Filters.eq("_id", id));
+    }
+    /** Find the first document with filter & sort */
+    public Document findFirstWithFilterSort(String dbName, String collName, Bson filter, Bson sort) {
+        return getCollection(dbName, collName).find(filter).sort(sort).first();
+    }
+
+    /** Find the first document in a collection with sort */
+    public Document findFirstSorted(String dbName, String collName, Bson sort) {
+        return getCollection(dbName, collName).find().sort(sort).first();
+    }
+
+    /** Update one document */
+    public UpdateResult updateOne(String dbName, String collName, Bson filter, Bson update) {
+        return getCollection(dbName, collName).updateOne(filter, update);
     }
 
 }
