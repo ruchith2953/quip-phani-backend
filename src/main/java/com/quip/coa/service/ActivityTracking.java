@@ -3,9 +3,11 @@ package com.quip.coa.service;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.dbhelper.MongoClientSingleton;
 import com.quip.coa.model.Activity;
+import com.quip.coa.mongoUtility.MongoUtility;
+import com.quip.coa.utilities.Constants;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,14 +16,12 @@ import java.util.HashMap;
 
 @Service
 public class ActivityTracking {
-	private static final String ACTIVITY_INFO_COLLECTION = "activityInfo";
 
-	//private MongoClient mongoClient;
-	//private MongoDatabase database;
-	private MongoCollection<Document> activityCollection;
+	@Autowired
+	private MongoUtility mongoUtility;
 
 	public void addActivity(String userName, String domain, String activityName,String clientName, String activityType) {
-		activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection(ACTIVITY_INFO_COLLECTION);
+		MongoCollection<Document> activityCollection = mongoUtility.getCollection(clientName,Constants.ACTIVITY_INFO_COLLECTION);
 		LocalDateTime currentDate = LocalDateTime.now();
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss");
 		String date = currentDate.format(formatter);
@@ -40,7 +40,7 @@ public class ActivityTracking {
 	}
 
 	public void updateActivity(String userName, String domain, String activityName, String clientName, String activityType) throws JsonProcessingException {
-		activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
+		MongoCollection<Document> activityCollection = mongoUtility.getCollection(clientName,Constants.ACTIVITY_INFO_COLLECTION);
 		Document query = new Document();
         query.append("activityType", activityType);
         query.append("userName", userName);
@@ -48,8 +48,7 @@ public class ActivityTracking {
 		if (activity != null) {
 			Document updateDoc = new Document();
 			updateDoc.put("activityName", activityName);
-			updateDoc.put("updatedDate",
-					LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+			updateDoc.put("updatedDate",LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
 			if (activityName.equals("aem_update_success")) {
 				updateDoc.put("activityCycle", "done");
 			}
@@ -74,25 +73,23 @@ public class ActivityTracking {
 		}
 	}
 
-	public HashMap<String, Object> initAemExtract(String userName, String domain, String clientName) {
-		activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
+	public HashMap<String, Object> initAemExtract(String userName, String domainUrl, String clientName) {
 		try {
 			HashMap<String, Object> result = new HashMap<String, Object>();
 			Document activity_query = new Document();
-			activity_query.put("domain", domain);
+			activity_query.put("domain", domainUrl);
 			activity_query.put("activityType", "component");
-			Document activityDoc = activityCollection.find(activity_query).sort(new Document("_id", -1))
-					.projection(new Document("_id", 0)).first();
+			Document activityDoc = mongoUtility.getDocByQueryProjectionAndSort(clientName,Constants.ACTIVITY_INFO_COLLECTION,activity_query,new Document("_id", 0),new Document("_id", -1));
 			ObjectMapper objectMapper = new ObjectMapper();
 			Activity activity = objectMapper.convertValue(activityDoc, Activity.class);
 			if (activity == null) {
 				result.put("initAEM", true);
-				result.put("message", "you can intiate AEM Data injestion");
+				result.put("message", "you can initiate AEM Data Ingestion");
 			} else {
 				if (activity.getUserName().equals(userName)) {
 					if ("done".equals(activity.getActivityCycle())) {
 						result.put("initAEM", true);
-						result.put("message", "you can intiate AEM Data injestion");
+						result.put("message", "you can initiate AEM Data Ingestion");
 					} else {
 						result.put("initAEM", false);
 						result.put("message", "Sorry, You have already initiated QUIP Ingestion, now you are at activity " + activity.getActivityName());
@@ -100,10 +97,10 @@ public class ActivityTracking {
 				} else {
 					if ("done".equals(activity.getActivityCycle())) {
 						result.put("initAEM", true);
-						result.put("message", "you can intiate AEM Data injestion");
+						result.put("message", "you can initiate AEM Data Ingestion");
 					} else {
 						result.put("initAEM", false);
-						result.put("message", "Sorry , QUIP Injestion is already initiated, please check with " + activity.getUserName());
+						result.put("message", "Sorry , QUIP Ingestion is already initiated, please check with " + activity.getUserName());
 					}
 				}
 			}

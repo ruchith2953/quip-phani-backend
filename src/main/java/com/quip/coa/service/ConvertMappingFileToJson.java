@@ -4,7 +4,6 @@ import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.CaseUtils;
 import org.apache.poi.ss.usermodel.Cell;
-import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -17,9 +16,9 @@ import java.io.InputStream;
 import java.util.*;
 
 @Service
-public class ConvertMappingFileToJsonV2 {
+public class ConvertMappingFileToJson {
 
-    private static final Logger log = LoggerFactory.getLogger(ConvertMappingFileToJsonV2.class);
+    private static final Logger log = LoggerFactory.getLogger(ConvertMappingFileToJson.class);
 
     public static final int UNIQUE_ID_COLUMN_NUMBER = 5;
 
@@ -44,34 +43,7 @@ public class ConvertMappingFileToJsonV2 {
         return mappingJson;
     }
 
-    /**********************************************
-     * READ HEADER MAPS
-     **********************************************/
-    public void getComponentColumnMaps(Iterator<Cell> cellItr,
-                                       Map<String, String> columnNamesMap,
-                                       Map<String, Object> mappingJson) {
-
-        while (cellItr.hasNext()) {
-            Cell cell = cellItr.next();
-
-            if (cell != null && cell.getCellType() != CellType.BLANK) {
-                String colName = cell.getStringCellValue();
-
-                if (StringUtils.isNotEmpty(colName)) {
-                    String camel = CaseUtils.toCamelCase(colName, false, ' ');
-                    columnNamesMap.put(camel, colName);
-
-                    log.info("[HEADER] Mapped header: '{}' (camel-case '{}')", colName, camel);
-                }
-            }
-        }
-
-        mappingJson.put("columnsMap", columnNamesMap);
-    }
-
-    /**********************************************
-     * HANDLE CHILD COMPONENTS
-     **********************************************/
+    //HANDLE CHILD COMPONENTS
     public void processComponentChildComponents(
             Row row,
             Map<String, Object> components,
@@ -94,7 +66,7 @@ public class ConvertMappingFileToJsonV2 {
 
         log.info("[CHILD] Processing component='{}' parent='{}'", componentName, parentName);
 
-        /***** COMPONENT LOGIC *****/
+        // COMPONENT LOGIC
         Map<String, Object> component = (Map<String, Object>) components.get(componentName);
 
         if (component != null) {
@@ -109,7 +81,7 @@ public class ConvertMappingFileToJsonV2 {
             log.info("[CHILD] Created component '{}'", componentName);
         }
 
-        /***** PARENT LOGIC *****/
+        // PARENT LOGIC
         if (StringUtils.isNotEmpty(parentName)) {
             Map<String, Object> parentComponent = (Map<String, Object>) components.get(parentName);
 
@@ -131,13 +103,8 @@ public class ConvertMappingFileToJsonV2 {
         }
     }
 
-    /**********************************************
-     * MAIN PARSER — FULLY SAFE + LOGGED
-     **********************************************/
-    public void transformComponentMappingFileToJson(
-            XSSFSheet sheet,
-            Map<String, Object> mappingJson,
-            Map<String, Object> components) throws IOException {
+    // MAIN PARSER — FULLY SAFE + LOGGED
+    public void transformComponentMappingFileToJson(XSSFSheet sheet,Map<String, Object> mappingJson,Map<String, Object> components) throws IOException {
 
         Map<String, String> columnNamesMap = new LinkedHashMap<>();
 
@@ -150,9 +117,7 @@ public class ConvertMappingFileToJsonV2 {
 
             Row row = rowIterator.next();
 
-            /**********************************
-             * HEADER ROW
-             **********************************/
+            // HEADER ROW
             if (rowIndex == 0) {
 
                 int lastCol = row.getLastCellNum();
@@ -180,10 +145,7 @@ public class ConvertMappingFileToJsonV2 {
                 continue;
             }
 
-            /**********************************
-             * DATA ROWS
-             **********************************/
-
+            // DATA ROWS
             int lastCol = row.getLastCellNum();
             log.info("\n[ROW] Processing row {} with {} columns", rowIndex, lastCol);
 

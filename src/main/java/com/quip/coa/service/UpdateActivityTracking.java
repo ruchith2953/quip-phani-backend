@@ -1,8 +1,10 @@
 package com.quip.coa.service;
 
 import com.mongodb.client.MongoCollection;
-import com.quip.coa.dbhelper.MongoClientSingleton;
+import com.quip.coa.mongoUtility.MongoUtility;
+import com.quip.coa.utilities.Constants;
 import org.bson.Document;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -10,11 +12,13 @@ import java.time.format.DateTimeFormatter;
 import java.util.Objects;
 
 @Service
-public class UpdateActivityTrackingV2 {
+public class UpdateActivityTracking {
+
+    @Autowired
+    private MongoUtility mongoUtility;
 
     public boolean updateActivity(String userName, String domain, String activityName, String clientName, String activityType) {
-    	//
-        MongoCollection<Document> activityCollection = MongoClientSingleton.getClient().getDatabase(clientName).getCollection("activityInfo");
+        MongoCollection<Document> activityCollection = mongoUtility.getCollection(clientName, Constants.ACTIVITY_INFO_COLLECTION);
         Document query = new Document();
         query.append("activityType", activityType);
         query.append("userName", userName);
@@ -22,8 +26,7 @@ public class UpdateActivityTrackingV2 {
         if (activity != null && Objects.equals(activity.get("userName"), userName)) {
             Document updateDoc = new Document();
             updateDoc.put("activityName", activityName);
-            updateDoc.put("updatedDate",
-                    LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
+            updateDoc.put("updatedDate",LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH:mm:ss")));
             if (Objects.equals(activityName,"aem_update_success")) {
                 updateDoc.put("activityCycle", "done");
             }
