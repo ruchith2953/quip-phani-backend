@@ -8,7 +8,7 @@ import com.mongodb.client.MongoCollection;
 import com.mongodb.client.model.Projections;
 import com.mongodb.client.model.Sorts;
 import com.mongodb.client.result.UpdateResult;
-import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.jsonexcel.ReadJsonFile;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -26,7 +26,7 @@ import java.util.Map;
 public class DataVersionService {
 
     @Autowired
-    private Readjsonfile readjsonfile;
+    private ReadJsonFile readjsonfile;
     @Autowired
     private MongoUtility mongoUtility;
 
@@ -64,7 +64,7 @@ public class DataVersionService {
 
     public Map<String, Object> displayData(String domainName){
         // fetch document from versionCollection and remove id
-        List<Document> documents = mongoUtility.findAll(domainName,Constants.VERSION_COLLECTION);
+        List<Document> documents = mongoUtility.getDocumentsList(domainName,Constants.VERSION_COLLECTION);
         Map<String, Object> combinedResponse = new LinkedHashMap<>();
 
         // iterate over doc and put doc id as key  and response document
@@ -119,7 +119,7 @@ public class DataVersionService {
 
     public Map<String, Map<String, Object>> getMapping(String clientName,String type){
         // fetching tenantConfig from database
-        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
+        Document tenantConfigDoc = mongoUtility.getFirstDocument(clientName,Constants.TENANT_CONFIG_COLLECTION);
 
         if (tenantConfigDoc!=null) {
             JsonNode tenantConfigComponentsData = objectMapper.convertValue(tenantConfigDoc.get(type), JsonNode.class);
@@ -163,7 +163,7 @@ public class DataVersionService {
         componentDocument.put("_id",objectId);
         // remove id
         componentDocument.remove("id");
-        UpdateResult result=mongoUtility.updateOne(clientName,Constants.COMPONENT_COLLECTION,new Document("_id",objectId),new Document("$set",componentDocument));
+        UpdateResult result=mongoUtility.updateDocument(clientName,Constants.COMPONENT_COLLECTION,new Document("_id",objectId),componentDocument);
 
         if (result.getModifiedCount()>0){
             response.put(Constants.FIELD_STATUS,Constants.STATUS_SUCCESS);

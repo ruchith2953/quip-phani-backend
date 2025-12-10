@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.InsertOneResult;
-import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.jsonexcel.ReadJsonFile;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -21,7 +21,7 @@ public class AEMDataConsumer {
 	@Autowired
 	private ComponentExtractJson componentExtractJson;
 	@Autowired
-	private Readjsonfile readjsonfile;
+	private ReadJsonFile readjsonfile;
     @Autowired
 	private MongoUtility mongoUtility;
 

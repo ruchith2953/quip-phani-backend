@@ -4,14 +4,12 @@ import com.mongodb.client.FindIterable;
 import com.mongodb.client.MongoClient;
 import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
-import com.mongodb.client.model.Filters;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.InsertOneResult;
 import com.mongodb.client.result.UpdateResult;
 import com.quip.coa.dbhelper.MongoClientSingleton;
 import org.bson.Document;
 import org.bson.conversions.Bson;
-import org.bson.types.ObjectId;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -51,7 +49,7 @@ public class MongoUtility {
     }
 
     // Fetch all documents from the collection and return as list
-    public List<Document> getDocsList(String databaseName, String collectionName) {
+    public List<Document> getDocumentsList(String databaseName, String collectionName) {
         return getDocuments(databaseName, collectionName).into(new ArrayList<>());
     }
 
@@ -66,7 +64,7 @@ public class MongoUtility {
     }
 
     // Fetch document from the collection based on query
-    public Document getDocByQuery(String databaseName, String collectionName, Document query) {
+    public Document getDocumentByQuery(String databaseName, String collectionName, Document query) {
         return getMatchedDocsByQuery(databaseName, collectionName, query).first();
     }
 
@@ -81,13 +79,13 @@ public class MongoUtility {
     }
 
     // Update document based on query and update operation
-    public void updateDocument(String databaseName, String collectionName, Document query, Document updateDocument) {
-        getCollection(databaseName, collectionName).updateOne(query, new Document("$set", updateDocument));
+    public UpdateResult updateDocument(String databaseName, String collectionName, Document query, Document updateDocument) {
+        return getCollection(databaseName, collectionName).updateOne(query, new Document("$set", updateDocument));
     }
 
     // Delete document based on query
-    public void deleteDocument(String databaseName, String collectionName, Document query) {
-        getCollection(databaseName, collectionName).deleteOne(query);
+    public DeleteResult deleteDocument(String databaseName, String collectionName, Document query) {
+        return getCollection(databaseName, collectionName).deleteOne(query);
     }
 
     // Insert Many documents into a collection
@@ -113,57 +111,14 @@ public class MongoUtility {
         return documentList;
     }
 
-    /** FindAll with projection */
-    public List<Document> findAll(String dbName, String collName) {
-        return getCollection(dbName, collName).find().into(new ArrayList<>());
-    }
-
-    /** FindAll with projection */
-    public List<Document> findAll(String dbName, String collName, Bson projection) {
-        var iterable = getCollection(dbName, collName).find();
-        if (projection != null) iterable = iterable.projection(projection);
-        return iterable.into(new ArrayList<>());
-    }
-
-    /** Delete one document */
-    public DeleteResult deleteOne(String dbName, String collName, Bson filter) {
-        return getCollection(dbName, collName).deleteOne(filter);
-    }
-
-    /** Delete many documents */
-    public DeleteResult deleteMany(String dbName, String collName, Bson filter) {
-        return getCollection(dbName, collName).deleteMany(filter);
-    }
-
-    /** Find one document (returns null if not found) */
-    public Document findOne(String dbName, String collName, Bson filter) {
-        return getCollection(dbName, collName).find(filter).first();
-    }
-
-    /** Find one document (returns null if not found) */
-    public Document findFirst(String dbName, String collName) {
-        return getCollection(dbName, collName).find().first();
-    }
-    /** Find one document by _id (String or ObjectId) */
-    public Document findById(String dbName, String collName, String id) {
-        if (ObjectId.isValid(id)) {
-            return findOne(dbName, collName, Filters.eq("_id", new ObjectId(id)));
-        }
-        return findOne(dbName, collName, Filters.eq("_id", id));
-    }
-    /** Find the first document with filter & sort */
-    public Document findFirstWithFilterSort(String dbName, String collName, Bson filter, Bson sort) {
-        return getCollection(dbName, collName).find(filter).sort(sort).first();
-    }
-
     /** Find the first document in a collection with sort */
     public Document findFirstSorted(String dbName, String collName, Bson sort) {
         return getCollection(dbName, collName).find().sort(sort).first();
     }
 
-    /** Update one document */
-    public UpdateResult updateOne(String dbName, String collName, Bson filter, Bson update) {
-        return getCollection(dbName, collName).updateOne(filter, update);
+    // Fetch the first document based on query and sort
+    public Document getFirstDocByQueryAndSort(String databaseName, String collectionName, Document query, Bson sort) {
+        return getMatchedDocsByQuery(databaseName, collectionName, query).sort(sort).first();
     }
 
 }

@@ -28,7 +28,7 @@ public class MasterJSONComponentData {
     private boolean flag=false;
 
     public Map<String,Object> convertMasterJsonData(String clientName) {
-        Document masterJsonData = mongoUtility.findOne(clientName, Constants.MASTER_JSON_COLLECTION,new Document());
+        Document masterJsonData = mongoUtility.getDocumentByQuery(clientName, Constants.MASTER_JSON_COLLECTION,new Document());
 
         if (masterJsonData==null){
             Map<String,Object> masterJsonComponentsData=new HashMap<>();
