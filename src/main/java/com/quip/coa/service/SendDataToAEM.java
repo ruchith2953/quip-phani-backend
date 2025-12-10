@@ -36,8 +36,8 @@ public class SendDataToAEM {
             String encodedAuth = Base64.getEncoder().encodeToString(credentials.getBytes(StandardCharsets.UTF_8));
 
             Map<String,String> headersMap= new HashMap<>();
-            headersMap.put("Content-Type", "application/json");
-            headersMap.put("Authorization", "Basic " + encodedAuth);
+            headersMap.put(Constants.CONTENT_TYPE, Constants.ACCEPT_JSON);
+            headersMap.put(Constants.AUTHORIZATION_HEADER, "Basic " + encodedAuth);
             JsonNode data= httpUtilities.httpPostResponse(Constants.UPDATE_DATA_TO_AEM,componentDataString,headersMap);
                if (data == null){
                 response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
@@ -48,9 +48,9 @@ public class SendDataToAEM {
                 String activityName="aem_update_success";
                 if (updateActivityTracking.updateActivity(userName,domain,activityName,clientName,"component")){
                     //after sending data to aem delete data from db
-                    mongoUtility.deleteMany(clientName,Constants.COMPONENT_COLLECTION,new Document());
-                    mongoUtility.deleteMany(clientName,Constants.MASTER_JSON_COLLECTION,new Document());
-                    mongoUtility.deleteMany(clientName,Constants.VERSION_COLLECTION,new Document());
+                    mongoUtility.deleteManyDocuments(clientName,Constants.COMPONENT_COLLECTION,new Document());
+                    mongoUtility.deleteManyDocuments(clientName,Constants.MASTER_JSON_COLLECTION,new Document());
+                    mongoUtility.deleteManyDocuments(clientName,Constants.VERSION_COLLECTION,new Document());
 
                     return objectMapper.convertValue(data,JsonNode.class);
                 }

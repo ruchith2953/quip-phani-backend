@@ -23,7 +23,7 @@ public class DomainService {
     private MongoUtility mongoUtility;
 
     public String postDomain(String domainName, String domainUrl) {
-        Document exisistingDocument=mongoUtility.findOne(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,new Document("domainUrl", domainUrl));
+        Document exisistingDocument=mongoUtility.getDocumentByQuery(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,new Document("domainUrl", domainUrl));
 
         if (exisistingDocument!=null) return null;
 
@@ -38,7 +38,7 @@ public class DomainService {
     }
 
     public List<Document> getAllDomains() {
-        List<Document> domains = mongoUtility.findAll(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION);
+        List<Document> domains = mongoUtility.getDocumentsList(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION);
         for (Document document : domains) {
             String id = document.get("_id").toString();
             document.append("id", id);
@@ -48,13 +48,12 @@ public class DomainService {
     }
 
     public DeleteResult deleteDomain(String id) {
-        return mongoUtility.deleteOne(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION, new Document("_id", new ObjectId(id)));
+        return mongoUtility.deleteDocument(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION, new Document("_id", new ObjectId(id)));
     }
 
     public Map<String, String> updateDomain(String id, String domainName, String domainUrl) {
         Map<String, String> response = new HashMap<>();
-
-        Document existing=mongoUtility.findById(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,id);
+        Document existing=mongoUtility.getDocumentByQuery(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,new Document("_id", new ObjectId(id)));
 
         if (existing==null){
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
@@ -72,7 +71,7 @@ public class DomainService {
         }
         updateFields.put("updatedAt", Instant.now().toString());
 
-        UpdateResult result = mongoUtility.updateOne(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,new Document("_id",new ObjectId(id)),new Document("$set", updateFields));
+        UpdateResult result = mongoUtility.updateDocument(Constants.AUTHOR_DOMAIN_DB, Constants.AUTHOR_DOMAIN_URLS_COLLECTION,new Document("_id",new ObjectId(id)),updateFields);
         if (result.getModifiedCount() == 0) {
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_MESSAGE, "No changes were applied");

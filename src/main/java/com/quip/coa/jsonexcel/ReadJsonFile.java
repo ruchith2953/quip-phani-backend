@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-public class Readjsonfile {
+public class ReadJsonFile {
 
 	public Map<String, Object> retrieveComponentProperties(Map<String, Map<String, Object>> components,Document resultDocument) {
 
@@ -21,20 +21,16 @@ public class Readjsonfile {
 
 		Map<String, Object> componentProperties = components.get(compNameKey);
 
-		if (componentProperties == null) {
-		} else {
+		if (componentProperties != null) {
 			String propertyKeyToRetrieve = "mappings";
 			Object propertyValue = componentProperties.get(propertyKeyToRetrieve);
 
 			if (propertyValue instanceof List) {
 				componentPropertiesList = (List<Map<String, Object>>) propertyValue;
-			} else {
 			}
 		}
 
-		int propertyListSize = componentPropertiesList.size();
-
-		if (propertyListSize > 1) {
+		if (componentPropertiesList.size() > 1) {
 			for (Map<String, Object> map : componentPropertiesList) {
 
 				boolean allKeysMatch = true;

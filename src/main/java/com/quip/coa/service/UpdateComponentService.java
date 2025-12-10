@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.model.Projections;
-import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.jsonexcel.ReadJsonFile;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -21,7 +21,7 @@ import java.util.Objects;
 public class UpdateComponentService {
 
     @Autowired
-    private Readjsonfile readjsonfile;
+    private ReadJsonFile readjsonfile;
     @Autowired
     private DataVersionService dataVersionService;
     @Autowired
@@ -42,7 +42,7 @@ public class UpdateComponentService {
             return response;
         }
 
-        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
+        Document tenantConfigDoc = mongoUtility.getFirstDocument(clientName,Constants.TENANT_CONFIG_COLLECTION);
         if (tenantConfigDoc==null){
             response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
             response.put(Constants.FIELD_MESSAGE, "No Master Mapping Data found for client: "+clientName);
@@ -83,14 +83,13 @@ public class UpdateComponentService {
                 }
             }
             toBeUpdated.put("modified","true");
-            Document updateDoc = new Document("$set", toBeUpdated);
 
             // mongo versioning
             componentDocument.put("id",document.get("id"));
             componentDocument.put("type","components");
-            dataVersionService.updateVersionData(componentDocument,clientName,userName);
-            long result = mongoUtility.updateOne(clientName,Constants.COMPONENT_COLLECTION,new Document("_id", id),updateDoc).getModifiedCount();
+            long result = mongoUtility.updateDocument(clientName,Constants.COMPONENT_COLLECTION,new Document("_id", id),toBeUpdated).getModifiedCount();
             if (result > 0) {
+                dataVersionService.updateVersionData(componentDocument,clientName,userName);
                 response.put(Constants.FIELD_STATUS, Constants.STATUS_SUCCESS);
                 response.put(Constants.FIELD_MESSAGE, "Document updated successfully with the id: " + id);
                 return response;

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.mongodb.client.MongoCollection;
 import com.mongodb.client.result.DeleteResult;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.service.*;
@@ -152,6 +151,7 @@ public class ComponentController {
 			boolean initAem = (boolean) activityStatusMap.get("initAEM");
 			if (!initAem) {
 				result.put(Constants.FIELD_MESSAGE, activityStatusMap.get("message").toString());
+				result.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
 				result.put("result", Collections.EMPTY_MAP);
 				return result;
 			} else {
@@ -163,6 +163,7 @@ public class ComponentController {
 				masterJson.put("metadata",metadata);
 				mongoUtility.insertDocument(domainName,Constants.MASTER_JSON_COLLECTION,masterJson);
 				result.put(Constants.FIELD_MESSAGE, "data ingested in QUIP");
+				result.put(Constants.FIELD_STATUS,Constants.STATUS_SUCCESS);
 				result.put("result", aemData);
 				activityTracking.updateActivity(userEmail, domainUrl, "aem_data_ingestion",domainName, "component");
 			}
@@ -195,19 +196,19 @@ public class ComponentController {
 		String id = updateDocument.get("id");
 
 		if (id == null || id.isEmpty()) {
-			response.put("status", "failed");
-			response.put("message", "Document id should not be empty or null, please provide a valid id");
+			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE, "Document id should not be empty or null, please provide a valid id");
 			return new ResponseEntity<>(response, HttpStatus.OK);
 		}
 		try {
 			response = updateComponentService.updateComponent(domainName, updateDocument, userName);
 		} catch (Exception e) {
 			if (e.getMessage().equalsIgnoreCase("state should be: hexString has 24 characters")) {
-				response.put("status", "failed");
-				response.put("message", "document id should be valid ");
+				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+				response.put(Constants.FIELD_MESSAGE, "document id should be valid ");
 			} else {
-				response.put("status", "failed");
-				response.put("message", "exception occurred:" + e.getMessage());
+				response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
+				response.put(Constants.FIELD_MESSAGE, "exception occurred:" + e.getMessage());
 			}
 		}
 		return new ResponseEntity<>(response, HttpStatus.OK);
@@ -237,21 +238,20 @@ public class ComponentController {
 		try {
 			response= convertMappingFileToJson.convertMappingFileToJson(file.getInputStream(), domain);
 			Document jsonData=mapper.convertValue(response, Document.class);
-			MongoCollection<Document> tenantConfigCollection= mongoUtility.getCollection(domain,Constants.TENANT_CONFIG_COLLECTION);
-			Document mappingFileDocument=tenantConfigCollection.find().first();
+			Document mappingFileDocument=mongoUtility.getFirstDocument(domain,Constants.TENANT_CONFIG_COLLECTION);
 			if (mappingFileDocument==null){
-				tenantConfigCollection.insertOne(jsonData);
+				mongoUtility.insertDocument(domain,Constants.TENANT_CONFIG_COLLECTION,jsonData);
 			}
 			else {
 				String id=mappingFileDocument.get("_id").toString();
-				tenantConfigCollection.updateOne(new Document("_id",id), new Document("$set",jsonData));
+				mongoUtility.updateDocument(domain,Constants.TENANT_CONFIG_COLLECTION,new Document("_id",id),jsonData);
 			}
 			return response;
 		} catch (Exception e) {
 			response=new HashMap<>();
-			response.put("status","failed");
-			response.put("message","failed to update master mapping data");
-			response.put("errorResponse",e.getMessage());
+			response.put(Constants.FIELD_STATUS,Constants.STATUS_FAILED);
+			response.put(Constants.FIELD_MESSAGE,"failed to update master mapping data");
+			response.put(Constants.RESPONSE_FAILED,e.getMessage());
 			return response;
 		}
 	}
@@ -264,11 +264,8 @@ public class ComponentController {
 		Document query=new Document();
 		query.put("activityType","component");
 
-		// extract the activity collection
-		MongoCollection<Document> userActivity= mongoUtility.getCollection(domainName,Constants.ACTIVITY_INFO_COLLECTION);
-
 		// check activity for component ingestion and check if activity is in progress
-		Document componentActivity=userActivity.find(query).sort(new Document("_id", -1)).first();
+		Document componentActivity= mongoUtility.getFirstDocByQueryAndSort(domainName,Constants.ACTIVITY_INFO_COLLECTION,query,new Document("_id", -1));
 		if (componentActivity==null || !componentActivity.get("activityCycle").equals("inprogress")){
 			response.put(Constants.FIELD_STATUS, Constants.STATUS_FAILED);
 			response.put(Constants.FIELD_MESSAGE, "No data found for domain '" + domainName + "'. Please Ingest data");

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mongodb.client.FindIterable;
 import com.quip.coa.helper.Utility;
-import com.quip.coa.jsonexcel.Readjsonfile;
+import com.quip.coa.jsonexcel.ReadJsonFile;
 import com.quip.coa.mongoUtility.MongoUtility;
 import com.quip.coa.utilities.Constants;
 import org.apache.commons.lang3.StringUtils;
@@ -20,16 +20,16 @@ public class ExportComponentsToJSON {
     @Autowired
     private Utility utility;
     @Autowired
-    private Readjsonfile readjsonfile;
+    private ReadJsonFile readjsonfile;
     @Autowired
     private MongoUtility mongoUtility;
     @Autowired
     private ObjectMapper mapper;
 
-    public Map<String, Object> exportToJSON(String domainUrl, String domainPath) throws Exception {
+    public Map<String, Object> exportToJSON(String domainUrl, String domainPath) {
         // extract clientName from URL
         String clientName = utility.getClientName(domainUrl);
-        Document tenantConfigDoc = mongoUtility.findFirst(clientName,Constants.TENANT_CONFIG_COLLECTION);
+        Document tenantConfigDoc = mongoUtility.getFirstDocument(clientName,Constants.TENANT_CONFIG_COLLECTION);
 
         Map<String, Object> outerData = new LinkedHashMap<>();
         List<Map<String, Object>> innerList = new ArrayList<>();
