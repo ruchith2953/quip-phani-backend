@@ -68,9 +68,6 @@ public class ExportComponentsToJSON {
                     .getCollection("component")
                     .countDocuments();
 
-            System.out.println("Component count: " + count);
-            System.out.println("Client Name is: "+ clientName );
-
             while (componentCollectionData.hasNext()) {
                 Document componentDocument = componentCollectionData.next();
                 String documentId=componentDocument.getObjectId("_id").toHexString();

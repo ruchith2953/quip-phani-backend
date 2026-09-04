@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
-public class ExportPagePropertiesV2 {
+public class ExportPageProperties {
 
     @Autowired
     private Utility utility;
@@ -66,7 +66,6 @@ public class ExportPagePropertiesV2 {
                     Document component = componentsCollectionData.find(new Document("_id", new ObjectId(documentId))).first();
 
                     if (component != null && component.get("componentName") != null) {
-                        System.out.println(component.get("componentName"));
                         // getting page properties mapping
                         Map<String, Object> componentProperties = readjsonfile.retrieveComponentProperties(components, component);
                         if (componentProperties.isEmpty()) {

@@ -39,7 +39,6 @@ public class ComponentExtractJson {
         if (responseJson == null) {
             throw new RuntimeException("Failed to fetch component JSON from API: " + domainUrl);
         }
-        System.out.println(responseJson);
 
         // Track activity
         activityTracking.addActivity(userEmail, domainUrl, Constants.ACTIVITY_TYPE, domainName, Constants.COMPONENT);

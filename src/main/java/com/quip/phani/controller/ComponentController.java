@@ -50,7 +50,12 @@ public class ComponentController {
     @Autowired
     private MongoUtility mongoUtility;
     @Autowired
-    private ExportPagePropertiesV2 exportPagePropertiesV2;
+    private ExportPageProperties exportPageProperties;
+    @Autowired
+    private AemFormService aemFormService;
+    @Autowired
+    private ReturnAemFormsData returnAemFormsData;
+
 
     private static final ObjectMapper mapper = new ObjectMapper();
 
@@ -153,6 +158,7 @@ public class ComponentController {
                 return result;
             } else {
                 Map<String, Object> aemData = aemDataConsumer.processAEMData(domainUrl, userEmail, domainName);
+                aemData = aemFormService.aemformData(aemData, domainName);
                 Document masterJson = mapper.convertValue(aemData, Document.class);
                 // adding user email to AEM meta data
                 Document metadata = mapper.convertValue(aemData.get("metadata"), Document.class);
@@ -290,8 +296,13 @@ public class ComponentController {
     }
 
     // export page data
-    @GetMapping("/exportPagePropertiesV2")
-    public JsonNode returnPagePropertiesV2(@RequestParam String userName, @RequestParam String clientUrl) throws Exception {
-        return mapper.convertValue(exportPagePropertiesV2.exportToJSON(userName,clientUrl),JsonNode.class);
+    @GetMapping("/exportPageProperties")
+    public JsonNode returnPageProperties(@RequestParam String userName, @RequestParam String domainUrl) throws Exception {
+        return mapper.convertValue(exportPageProperties.exportToJSON(userName, domainUrl), JsonNode.class);
+    }
+
+    @GetMapping("/getAemForms")
+    public Map<String, Object> getAemForms(@RequestParam String domainUrl) throws Exception {
+        return returnAemFormsData.exportFormsToJSON(domainUrl);
     }
 }
